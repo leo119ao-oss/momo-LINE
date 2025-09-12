@@ -1,35 +1,154 @@
-'use client'
+'use client';
+
+import { useState, useEffect } from 'react';
+// import type { Liff } from '@line/liff'; //
+// パッケージが見つからないエラーを解消するため、CDNから直接読み込む方式に変更します。
 
 export default function RegisterPage() {
-  return (
-    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif' }}>
-      <h1>📝 ユーザー登録</h1>
-      <p>Momo LINE Botにご登録いただき、ありがとうございます。</p>
+  const [liffObject, setLiffObject] = useState<any | null>(null); //
+  const [lineId, setLineId] = useState<string>('');
+  const [status, setStatus] = useState<string>('LIFFアプリを初期化しています...');
+  const [error, setError] = useState<string>('');
+  const [isRegistered, setIsRegistered] = useState<boolean>(false);
+  
+  useEffect(() => {
+    // ブラウザ環境で`process`オブジェクトが存在しないエラーを回避するため、
+    // 環境変数の読み込みをuseEffectフック内に移動します。
+    const liffId = process.env.NEXT_PUBLIC_LIFF_ID;
+
+    // LIFF SDKをCDNから動的に読み込むことで、ビルドエラーを回避します。
+    const script = document.createElement('script');
+    script.src = 'https://static.line-scdn.net/liff/edge/2.1/sdk.js';
+    script.async = true;
+    
+    script.onload = () => {
+      const liff = (window as any).liff;
+      if (!liff) {
+        setStatus('エラー: LIFF SDKの読み込みに失敗しました。');
+        return;
+      }
+
+      console.log('LIFF SDK loaded from CDN');
+      if (!liffId) {
+        setStatus('エラー: LIFF IDが設定されていません。');
+        return;
+      }
       
-      <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f0f0f0', borderRadius: '8px' }}>
-        <h2>🤖 LINE Botの使い方</h2>
-        <ol>
-          <li>LINEアプリでMomoを友だち追加</li>
-          <li>メッセージを送信して対話を開始</li>
-          <li>AIがカウンセリング特化の応答を提供</li>
-        </ol>
-      </div>
+      // LIFFを初期化
+      liff.init({ liffId })
+        .then(() => {
+          console.log('LIFF init succeeded.');
+          setLiffObject(liff);
+          if (liff.isLoggedIn()) {
+            // ログイン済みならユーザー情報を取得
+            liff.getProfile()
+              .then((profile: { userId: string }) => {
+                setLineId(profile.userId);
+                setStatus('研究へのご協力ありがとうございます。あなたのアーキタイプを選択してください。');
+              })
+              .catch((err: Error) => {
+                console.error(err);
+                setError('ユーザー情報の取得に失敗しました。');
+              });
+          } else {
+            // 未ログインならログインを促す
+            setStatus('LINEにログインしてください。');
+            liff.login();
+          }
+        })
+        .catch((e: Error) => {
+          console.error(e);
+          setStatus('LIFFの初期化に失敗しました。');
+          setError(e.toString());
+        });
+    };
 
-      <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#e8f5e8', borderRadius: '8px' }}>
-        <h2>🔗 LINE Botの追加</h2>
-        <p>LINEアプリで以下のQRコードをスキャンするか、友だち追加してください：</p>
-        <p><strong>Bot ID:</strong> @momo-line-bot</p>
-      </div>
+    script.onerror = () => {
+      setStatus('LIFF SDKの読み込みエラー');
+      setError('CDNからのスクリプト読み込みに失敗しました。ネットワーク接続を確認してください。');
+    };
+    
+    document.body.appendChild(script);
 
-      <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#fff3cd', borderRadius: '8px' }}>
-        <h2>⚠️ 注意事項</h2>
-        <ul>
-          <li>プライバシーを尊重し、安全な対話を心がけています</li>
-          <li>対話内容は学習目的で匿名化して保存される場合があります</li>
-          <li>緊急時は専門のカウンセラーにご相談ください</li>
-        </ul>
-      </div>
+    // コンポーネントのアンマウント時にスクリプトをクリーンアップ
+    return () => {
+      if (document.body.contains(script)) {
+        document.body.removeChild(script);
+      }
+    };
+  }, []); // 依存配列は空で問題ありません
+
+  // 登録処理
+  const handleRegister = async (archetype: 'A' | 'B') => {
+    if (!lineId) {
+      setError('LINEユーザーIDが取得できていません。');
+      return;
+    }
+    setStatus('登録処理を実行中...');
+    try {
+      const response = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ lineUserId: lineId, archetype }),
+      });
+      if (!response.ok) {
+        throw new Error('サーバーでエラーが発生しました。');
+      }
+      setStatus('登録が完了しました！このウィンドウを閉じて、Momoとの対話をお楽しみください。');
+      setIsRegistered(true);
+      // 3秒後にLIFFウィンドウを自動で閉じる
+      setTimeout(() => {
+        liffObject?.closeWindow();
+      }, 3000);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : '不明なエラーが発生しました。');
+      setStatus('登録に失敗しました。');
+    }
+  };
+
+  return (
+    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '600px', margin: 'auto', textAlign: 'center' }}>
+      <h1 style={{ color: '#333' }}>Momo 研究参加者登録</h1>
+      <p style={{ color: '#555', minHeight: '40px' }}>{status}</p>
+      
+      {!isRegistered && lineId && !error && (
+        <div style={{ marginTop: '30px' }}>
+          <button onClick={() => handleRegister('A')} style={buttonStyle}>
+            私はアーキタイプAです
+            <small style={smallTextStyle}>（書くことを通じた自己表現を実践している）</small>
+          </button>
+          <button onClick={() => handleRegister('B')} style={buttonStyle}>
+            私はアーキタイプBです
+            <small style={smallTextStyle}>（特定の表現活動には従事していない）</small>
+          </button>
+        </div>
+      )}
+
+      {error && <p style={{ color: 'red', marginTop: '20px' }}>エラー: {error}</p>}
     </div>
   );
 }
+
+const buttonStyle: React.CSSProperties = {
+  display: 'block',
+  width: '100%',
+  padding: '20px',
+  margin: '15px 0',
+  fontSize: '18px',
+  fontWeight: 'bold',
+  cursor: 'pointer',
+  border: 'none',
+  borderRadius: '8px',
+  backgroundColor: '#f0f0f0',
+  color: '#333',
+  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+};
+
+const smallTextStyle: React.CSSProperties = {
+    display: 'block',
+    marginTop: '5px',
+    fontSize: '12px',
+    fontWeight: 'normal',
+    color: '#666',
+};
 
