@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { lineClient } from '@/lib/lineClient';
-import { supabase } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 function verifyCronSecret(req: NextRequest) {
   const auth = req.headers.get('authorization');
@@ -16,7 +16,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { data: users, error: usersErr } = await supabase
+  const { data: users, error: usersErr } = await supabaseAdmin
     .from('participants')
     .select('id, line_user_id');
 
@@ -27,7 +27,7 @@ export async function GET(request: NextRequest) {
   const results: any[] = [];
 
   for (const u of users) {
-    const { data: logs } = await supabase
+    const { data: logs } = await supabaseAdmin
       .from('chat_logs')
       .select('role, content, created_at')
       .eq('participant_id', u.id)
@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
       await lineClient.pushMessage(u.line_user_id, { type: 'text', text: summary });
       results.push({ userId: u.line_user_id, status: 'success' });
     } catch (e: any) {
-      await supabase.from('line_push_errors').insert({
+      await supabaseAdmin.from('line_push_errors').insert({
         line_user_id: u.line_user_id,
         payload: { text: summary },
         error: e?.message ?? String(e)
