@@ -10,6 +10,33 @@ const MOMO_VOICE = `
 - 長文になりすぎない。段落を分け、読みやすく。
 `.trim();
 
+// タイトルと著者名を遅延取得するヘルパー関数
+async function fillTitleAuthorIfMissing(hit: any) {
+  if (hit.title && hit.author_name) return hit;
+  try {
+    const api = new URL('https://www.okaasan.net/wp-json/wp/v2/posts');
+    api.searchParams.set('search', hit.source_url);
+    api.searchParams.set('per_page', '1');
+    api.searchParams.set('_embed', 'author');
+    const r = await fetch(api.toString());
+    if (!r.ok) return hit;
+    const [p] = await r.json();
+    const clean = (s: string) => s?.replace?.(/<[^>]*>/g, '')?.trim?.() ?? '';
+    const title = clean(p?.title?.rendered) || hit.title;
+    const author = p?._embedded?.author?.[0]?.name || hit.author_name || 'お母さん大学';
+    hit.title = title; hit.author_name = author;
+
+    // ベストエフォートでDBにも保存（将来のため）
+    try {
+      const { supabaseAdmin } = await import('@/lib/supabaseAdmin');
+      await supabaseAdmin.from('documents')
+        .update({ title, author_name: author })
+        .eq('source_url', hit.source_url);
+    } catch {}
+  } catch {}
+  return hit;
+}
+
 function expandJaQuery(q: string) {
   const norms: Array<[RegExp, string]> = [
     // 天気・環境関連
@@ -261,6 +288,11 @@ async function handleInformationSeeking(userMessage: string, participant: any): 
     const picked = (filtered.length ? filtered : docs).slice(0, 5); // より多くの記事を返す
     console.log(`[RAG] after_filter: ${filtered.length}, picked: ${picked.length}`);
 
+    // タイトルと著者名を遅延取得
+    for (let i = 0; i < picked.length; i++) {
+      picked[i] = await fillTitleAuthorIfMissing(picked[i]);
+    }
+
     // ここまでで picked.length が0ならフォールバック
     if (picked.length === 0) {
       const wp = await wpFallbackSearch(userMessage, 5);
@@ -301,11 +333,9 @@ ${thread}
     const answer = completion.choices[0].message.content || 'すみません、うまくお答えできませんでした。';
     
     // 引用の体裁を整える（番号＋タイトル — 著者＋URL）
-    const refs = picked.map((d: any, i: number) => {
-      const t = d.title ?? '(タイトル未取得)';
-      const a = d.author_name ?? 'お母さん大学';
-      return `[${i+1}] ${t} — ${a}\n${d.source_url}`;
-    }).join('\n');
+    const refs = picked.map((d: any, i: number) =>
+      `[${i+1}] ${d.title ?? '(タイトル未取得)'} — ${d.author_name ?? 'お母さん大学'}\n${d.source_url}`
+    ).join('\n');
     return `${answer}\n\n— 参考記事 —\n${refs}`;
 
   } catch (error) {
