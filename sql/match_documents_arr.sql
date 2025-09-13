@@ -4,6 +4,8 @@ CREATE OR REPLACE FUNCTION match_documents_arr (
 )
 RETURNS TABLE (
   id BIGINT,
+  title TEXT,
+  author_name TEXT,
   content TEXT,
   source_url VARCHAR(500),
   similarity FLOAT
@@ -11,6 +13,8 @@ RETURNS TABLE (
 LANGUAGE sql STABLE AS $$
   SELECT
     d.id,
+    d.title,
+    d.author_name,
     d.content,
     d.source_url,
     1 - (d.embedding <=> (query_embedding::vector(1536))) AS similarity

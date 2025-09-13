@@ -31,7 +31,7 @@ async function main() {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const openai = new OpenAI({ apiKey: openaiApiKey });
 
-  // 2. WordPressから記事データを取得（全記事をページネーションで取得）
+  // 2. WordPressから記事データを取得（_embedで著者名を同時取得）
   console.log('Fetching all articles from okaasan.net...');
   
   let allPosts: any[] = [];
@@ -40,7 +40,7 @@ async function main() {
   
   while (hasMorePages) {
     console.log(`Fetching page ${page}...`);
-    const response = await fetch(`https://www.okaasan.net/wp-json/wp/v2/posts?per_page=100&page=${page}`);
+    const response = await fetch(`https://www.okaasan.net/wp-json/wp/v2/posts?per_page=100&page=${page}&_embed=author`);
     
     if (!response.ok) {
       throw new Error(`Failed to fetch posts: ${response.statusText}`);
@@ -66,6 +66,7 @@ async function main() {
     const title = sanitizeHtml(post.title.rendered);
     const content = sanitizeHtml(post.content.rendered);
     const url = post.link;
+    const authorName = post?._embedded?.author?.[0]?.name ? String(post._embedded.author[0].name) : 'お母さん大学';
 
     console.log(`\nProcessing article: "${title}"`);
 
@@ -90,6 +91,8 @@ async function main() {
         source_url: url,
         chunk_idx: b.idx,
         embedding: emb.data[j].embedding,
+        title,
+        author_name: authorName,
       }));
 
       // Supabaseにupsert（重複時は更新）
