@@ -4,5 +4,15 @@
       "src": "next.config.js",
       "use": "@vercel/next"
     }
+  ],
+  "crons": [
+    {
+      "path": "/api/cron/send-daily-question",
+      "schedule": "0 5 * * *"
+    },
+    {
+      "path": "/api/cron/send-weekly-summary",
+      "schedule": "0 12 * * 5"
+    }
   ]
 }
