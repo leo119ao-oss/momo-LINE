@@ -103,13 +103,18 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
     });
 
     if (error) throw new Error(`Supabase search error: ${error.message}`);
-    if (!documents || documents.length === 0) {
-      return 'ごめんなさい、その質問に関連する情報が私の知識の中に見つかりませんでした。';
+    
+    // documents には similarity を含む前提（match_documents_arr）
+    const MIN_SIM = 0.25; // 日本語×smallモデルなら 0.2〜0.35 が現実的
+    const filtered = (documents ?? []).filter((d: any) => (d.similarity ?? 0) >= MIN_SIM);
+    const picked = (filtered.length ? filtered : (documents ?? [])).slice(0, 3);
+
+    if (picked.length === 0) {
+      return 'ごめん、いま手元のデータからは関連が拾えなかった… もう少し違う聞き方も試してみて？';
     }
 
-    // 3. 取得した情報をコンテキストとして回答を生成
-    const contextText = documents.map((d: any) => d.content).join('\n---\n');
-    const sourceUrls = Array.from(new Set(documents.map((d: any) => d.source_url)));
+    const contextText = picked.map((d: any) => d.content).join('\n---\n');
+    const sourceUrls = Array.from(new Set(picked.map((d: any) => d.source_url)));
 
     const systemPrompt = `
       あなたは「okaasan.net」の知識を持つ、温かく親しみやすい相談相手です。
@@ -132,7 +137,7 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
 
     const answer = completion.choices[0].message.content || 'すみません、うまくお答えできませんでした。';
     
-    // 4. 回答に引用元URLを付与
+    // 引用の体裁を整える（番号付き）
     const refs = sourceUrls.map((u, i) => `[${i+1}] ${u}`).join('\n');
     return `${answer}\n\n— 参考記事 —\n${refs}`;
 
