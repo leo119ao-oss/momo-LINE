@@ -1,0 +1,41 @@
+[1mdiff --git a/src/app/api/debug/rag/route.ts b/src/app/api/debug/rag/route.ts[m
+[1mindex 9ad79d6..b4e5371 100644[m
+[1m--- a/src/app/api/debug/rag/route.ts[m
+[1m+++ b/src/app/api/debug/rag/route.ts[m
+[36m@@ -1,12 +1,12 @@[m
+[31m-import { NextResponse } from 'next/server';[m
+[32m+[m[32mimport { NextRequest, NextResponse } from 'next/server';[m
+ import OpenAI from 'openai';[m
+ import { supabaseAdmin } from '@/lib/supabaseAdmin';[m
+ [m
+ export const runtime = 'nodejs';[m
+ [m
+[31m-export async function GET() {[m
+[32m+[m[32mexport async function GET(req: NextRequest) {[m
+[32m+[m[32m  const q = new URL(req.url).searchParams.get('q') || '子育て イライラ 解消 コツ';[m
+   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });[m
+[31m-  const q = '子育て イライラ 解消 コツ'; // テスト文[m
+ [m
+   const emb = await openai.embeddings.create({[m
+     model: 'text-embedding-3-small',[m
+[36m@@ -14,17 +14,11 @@[m [mexport async function GET() {[m
+   });[m
+ [m
+   const { data, error } = await supabaseAdmin.rpc('match_documents_arr', {[m
+[31m-    query_embedding: emb.data[0].embedding,[m
+[31m-    match_count: 8[m
+[32m+[m[32m    query_embedding: emb.data[0].embedding, match_count: 8[m
+   });[m
+ [m
+   return NextResponse.json({[m
+[31m-    error,[m
+[31m-    hits: data?.map((d:any) => ({[m
+[31m-      id: d.id,[m
+[31m-      sim: d.similarity,[m
+[31m-      url: d.source_url,[m
+[31m-      preview: d.content.slice(0,80)[m
+[31m-    }))[m
+[32m+[m[32m    q, error,[m
+[32m+[m[32m    hits: data?.map((d:any) => ({ id: d.id, sim: d.similarity, url: d.source_url, preview: d.content.slice(0,80) }))[m
+   });[m
+ }[m
