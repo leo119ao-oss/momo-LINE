@@ -13,7 +13,7 @@ export async function GET(req: NextRequest) {
     input: q
   });
 
-  const { data, error } = await supabaseAdmin.rpc('match_documents_arr', {
+  const { data, error } = await supabaseAdmin.rpc('match_documents', {
     query_embedding: emb.data[0].embedding, match_count: 8
   });
 

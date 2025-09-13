@@ -132,7 +132,7 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
     const queryEmbedding = embeddingResponse.data[0].embedding;
 
     // 2. Supabase DBから関連情報を検索 (SQLで作成した関数を呼び出す)
-    const { data: documents, error } = await supabaseAdmin.rpc('match_documents_arr', {
+    const { data: documents, error } = await supabaseAdmin.rpc('match_documents', {
       query_embedding: queryEmbedding, // number[]
       match_count: 8
     });
@@ -149,7 +149,7 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
           model: 'text-embedding-3-small',
           input: expanded,
         });
-        const { data: docs2 } = await supabaseAdmin.rpc('match_documents_arr', {
+        const { data: docs2 } = await supabaseAdmin.rpc('match_documents', {
           query_embedding: emb2.data[0].embedding, match_count: 8
         });
         docs = docs2 ?? [];
