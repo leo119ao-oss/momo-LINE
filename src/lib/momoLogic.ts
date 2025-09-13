@@ -37,18 +37,6 @@ async function fillTitleAuthorIfMissing(hit: any) {
   return hit;
 }
 
-// 会話ログを取得するヘルパー関数
-async function getRecentThread(participantId: number) {
-  const { supabaseAdmin } = await import('@/lib/supabaseAdmin');
-  const { data: logs } = await supabaseAdmin
-    .from('chat_logs')
-    .select('role, content')
-    .eq('participant_id', participantId)
-    .order('created_at', { ascending: false })
-    .limit(8);
-  return (logs ?? []).reverse()
-    .map(l => `${l.role === 'user' ? 'U' : 'AI'}: ${l.content}`).join('\n');
-}
 
 function expandJaQuery(q: string) {
   const norms: Array<[RegExp, string]> = [
@@ -258,8 +246,6 @@ async function detectUserIntent(userMessage: string): Promise<UserIntent> {
 async function handleInformationSeeking(userMessage: string, participant: any): Promise<string> {
   console.log('Handling information seeking intent...');
   try {
-    // 会話コンテキストを取得
-    const { lastUser, thread } = await getConversationContext(participant.id);
     // 1st try: 元のクエリでベクトル検索
     let queryText = userMessage;
     const embeddingResponse = await openai.embeddings.create({
@@ -319,12 +305,12 @@ async function handleInformationSeeking(userMessage: string, participant: any): 
     const contextText = picked.map((d: any) => d.content).join('\n---\n');
     const sourceUrls = Array.from(new Set(picked.map((d: any) => d.source_url)));
 
-    const thread = await getRecentThread(participant.id);
+    const { lastUser, thread: recentThread } = await getConversationContext(participant.id);
     const systemPrompt = `
 ${MOMO_VOICE}
 
 [最近の会話ログ]
-${thread}
+${recentThread}
 
 [ルール]
 1) 冒頭に1〜2文だけ共感を添える（過度な深掘りはしない）。
