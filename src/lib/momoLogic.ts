@@ -10,30 +10,79 @@ const MOMO_VOICE = `
 - 長文にしすぎない。段落を分けて読みやすく。
 `.trim();
 
-// タイトルと著者名を遅延取得するヘルパー関数
-async function fillTitleAuthorIfMissing(hit: any) {
-  if (hit.title && hit.author_name) return hit;
+function getSlugFromUrl(url: string): string | null {
   try {
-    const api = new URL('https://www.okaasan.net/wp-json/wp/v2/posts');
-    api.searchParams.set('search', hit.source_url);
-    api.searchParams.set('per_page', '1');
-    api.searchParams.set('_embed', 'author');
-    const r = await fetch(api.toString());
-    if (!r.ok) return hit;
-    const [p] = await r.json();
-    const clean = (s: string) => s?.replace?.(/<[^>]*>/g, '')?.trim?.() ?? '';
-    const title = clean(p?.title?.rendered) || hit.title;
-    const author = p?._embedded?.author?.[0]?.name || hit.author_name || 'お母さん大学';
-    hit.title = title; hit.author_name = author;
+    const u = new URL(url);
+    const parts = u.pathname.split('/').filter(Boolean);
+    return parts.length ? decodeURIComponent(parts.at(-1)!) : null;
+  } catch { return null; }
+}
 
-    // ベストエフォートでDBにも保存（将来のため）
+async function fetchWpMetaByUrl(url: string) {
+  const base = 'https://www.okaasan.net/wp-json/wp/v2/posts';
+  const slug = getSlugFromUrl(url);
+  // 1) slug でピンポイント
+  if (slug) {
+    const r1 = await fetch(`${base}?slug=${encodeURIComponent(slug)}&_embed=author&per_page=1`);
+    if (r1.ok) {
+      const j: any[] = await r1.json();
+      if (j[0]) {
+        const clean = (s: string) => s?.replace?.(/<[^>]*>/g,'')?.trim?.() ?? '';
+        return {
+          title: clean(j[0]?.title?.rendered),
+          author_name: j[0]?._embedded?.author?.[0]?.name || 'お母さん大学'
+        };
+      }
+    }
+  }
+  // 2) ダメなら search にフォールバック
+  const r2 = await fetch(`${base}?search=${encodeURIComponent(url)}&_embed=author&per_page=1`);
+  if (r2.ok) {
+    const j: any[] = await r2.json();
+    if (j[0]) {
+      const clean = (s: string) => s?.replace?.(/<[^>]*>/g,'')?.trim?.() ?? '';
+      return {
+        title: clean(j[0]?.title?.rendered),
+        author_name: j[0]?._embedded?.author?.[0]?.name || 'お母さん大学'
+      };
+    }
+  }
+  // 3) 最後の保険：HTMLの<title>を直取り
+  try {
+    const html = await (await fetch(url, { cache: 'no-store' })).text();
+    const m = html.match(/<title>(.*?)<\/title>/i);
+    if (m?.[1]) {
+      // サイト名サフィックスを軽く除去（必要なら）
+      const t = m[1].replace(/\s*\|\s*.*$/,'').trim();
+      return { title: t, author_name: 'お母さん大学' };
+    }
+  } catch {}
+  return null;
+}
+
+const metaCache = new Map<string, { title?: string; author_name?: string }>();
+
+export async function fillTitleAuthorIfMissing(hit: any) {
+  if (hit.title && hit.author_name) return hit;
+  if (metaCache.has(hit.source_url)) {
+    const cached = metaCache.get(hit.source_url)!;
+    hit.title = hit.title ?? cached.title;
+    hit.author_name = hit.author_name ?? cached.author_name;
+    return hit;
+  }
+  const meta = await fetchWpMetaByUrl(hit.source_url);
+  if (meta) {
+    metaCache.set(hit.source_url, meta);
+    hit.title = hit.title ?? meta.title;
+    hit.author_name = hit.author_name ?? meta.author_name;
+    // 将来のためにDBもベストエフォートで更新
     try {
       const { supabaseAdmin } = await import('@/lib/supabaseAdmin');
       await supabaseAdmin.from('documents')
-        .update({ title, author_name: author })
+        .update({ title: meta.title, author_name: meta.author_name })
         .eq('source_url', hit.source_url);
     } catch {}
-  } catch {}
+  }
   return hit;
 }
 
