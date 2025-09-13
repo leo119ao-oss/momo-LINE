@@ -71,7 +71,7 @@ type UserIntent = 'information_seeking' | 'personal_reflection';
  * @returns 'information_seeking' (情報探索) または 'personal_reflection' (内省的なつぶやき)
  */
 async function detectUserIntent(userMessage: string): Promise<UserIntent> {
-  const quickAskRegex = /[？\?]|(どう|教えて|方法|何|どこ|いつ|おすすめ|使い方)/;
+  const quickAskRegex = /[？\?]|(どう|教えて|方法|何|どこ|いつ|おすすめ|使い方|遊び|コツ|困る|悩み|解決|したい|したい|やり方|教えて|知りたい|について|について|について)/;
   if (quickAskRegex.test(userMessage)) return 'information_seeking';
   
   const prompt = `
@@ -224,6 +224,7 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
 
   // ユーザーの意図を判別
   const intent = await detectUserIntent(text);
+  console.log(`[Intent] User message: "${text}" -> Intent: ${intent}`);
   let aiMessage: string;
 
   if (intent === 'information_seeking') {
