@@ -255,10 +255,9 @@ async function handleInformationSeeking(userMessage: string, participant: any): 
     const queryEmbedding = embeddingResponse.data[0].embedding;
 
     // 2. Supabase DBから関連情報を検索 (SQLで作成した関数を呼び出す)
-    const { data: documents, error } = await supabaseAdmin.rpc('match_documents', {
+    const { data: documents, error } = await supabaseAdmin.rpc('match_documents_arr', {
       query_embedding: queryEmbedding, // number[]
-      match_count: 8,
-      match_threshold: 0.1
+      match_count: 8
     });
 
     if (error) throw new Error(`Supabase search error: ${error.message}`);
@@ -274,8 +273,8 @@ async function handleInformationSeeking(userMessage: string, participant: any): 
           model: 'text-embedding-3-small',
           input: expanded,
         });
-        const { data: docs2 } = await supabaseAdmin.rpc('match_documents', {
-          query_embedding: emb2.data[0].embedding, match_count: 8, match_threshold: 0.1
+        const { data: docs2 } = await supabaseAdmin.rpc('match_documents_arr', {
+          query_embedding: emb2.data[0].embedding, match_count: 8
         });
         docs = docs2 ?? [];
       }
