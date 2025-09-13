@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { lineClient } from '@/lib/lineClient';
-import { supabase } from '@/lib/supabaseClient';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 // 認証用のヘッダーをチェック
 function verifyCronSecret(request: NextRequest): boolean {
@@ -40,7 +40,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Supabaseのparticipantsテーブルから全ユーザーを取得
-    const { data: users, error } = await supabase
+    const { data: users, error } = await supabaseAdmin
       .from('participants')
       .select('line_user_id');
 
@@ -70,7 +70,7 @@ export async function GET(request: NextRequest) {
         const errorMessage = error instanceof Error ? error.message : String(error);
         
         // エラーログをデータベースに保存
-        await supabase.from('line_push_errors').insert({
+        await supabaseAdmin.from('line_push_errors').insert({
           line_user_id: user.line_user_id,
           payload: { text: selectedQuestion },
           error: errorMessage

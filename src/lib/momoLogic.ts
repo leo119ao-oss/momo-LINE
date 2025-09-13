@@ -141,6 +141,7 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
     if (error) throw new Error(`Supabase search error: ${error.message}`);
     
     let docs = documents ?? [];
+    console.log(`[RAG] raw_hits: ${docs.length}, topSim: ${docs[0]?.similarity || 0}`);
 
     // 0件なら 2nd try with expanded query
     if (!docs.length) {
@@ -161,6 +162,7 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
     const MIN_SIM = 0.25; // 日本語×smallモデルなら 0.2〜0.35 が現実的
     const filtered = docs.filter((d: any) => (d.similarity ?? 0) >= MIN_SIM);
     const picked = (filtered.length ? filtered : docs).slice(0, 3);
+    console.log(`[RAG] after_filter: ${filtered.length}, picked: ${picked.length}`);
 
     // ここまでで picked.length が0ならフォールバック
     if (picked.length === 0) {
