@@ -37,6 +37,19 @@ async function fillTitleAuthorIfMissing(hit: any) {
   return hit;
 }
 
+// 会話ログを取得するヘルパー関数
+async function getRecentThread(participantId: number) {
+  const { supabaseAdmin } = await import('@/lib/supabaseAdmin');
+  const { data: logs } = await supabaseAdmin
+    .from('chat_logs')
+    .select('role, content')
+    .eq('participant_id', participantId)
+    .order('created_at', { ascending: false })
+    .limit(8);
+  return (logs ?? []).reverse()
+    .map(l => `${l.role === 'user' ? 'U' : 'AI'}: ${l.content}`).join('\n');
+}
+
 function expandJaQuery(q: string) {
   const norms: Array<[RegExp, string]> = [
     // 天気・環境関連
@@ -306,20 +319,19 @@ async function handleInformationSeeking(userMessage: string, participant: any): 
     const contextText = picked.map((d: any) => d.content).join('\n---\n');
     const sourceUrls = Array.from(new Set(picked.map((d: any) => d.source_url)));
 
-    const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
+    const thread = await getRecentThread(participant.id);
     const systemPrompt = `
-${MOMO_VOICE}${profile}
+${MOMO_VOICE}
 
 [最近の会話ログ]
 ${thread}
 
 [ルール]
-1) 冒頭に一言の共感→情報→参考記事の順序で回答。
-2) 最初に1〜2文だけ、直前のユーザーの気持ちに寄り添う（過度に深掘りしない）。
-3) 次に「質問への答え」を、与えられたコンテキスト（記事チャンク）から根拠をもとに要約。
-4) 断定は避け、「〜かも」「〜という考え方も」でやわらかく。
-5) 短い箇条書きOK。最後に一言だけ励ます。
-6) コンテキスト外は無理に答えない。
+1) 冒頭に1〜2文だけ共感を添える（過度な深掘りはしない）。
+2) 次に、提供されたコンテキストの範囲で質問に答える。
+3) 断定は避け、「〜かも」「〜という考え方も」で柔らかく。
+4) 箇条書きOK。最後に一言だけ励ます。
+5) コンテキスト外は無理に答えない。
 `.trim();
 
     const completion = await openai.chat.completions.create({
