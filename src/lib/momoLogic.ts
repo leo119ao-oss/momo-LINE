@@ -97,10 +97,9 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
     const queryEmbedding = embeddingResponse.data[0].embedding;
 
     // 2. Supabase DBから関連情報を検索 (SQLで作成した関数を呼び出す)
-    const { data: documents, error } = await supabaseAdmin.rpc('match_documents', {
-      query_embedding: queryEmbedding,
-      match_threshold: 0.7, // 基準を少し下げてテスト
-      match_count: 3,         // 最大3件のチャンクを取得
+    const { data: documents, error } = await supabaseAdmin.rpc('match_documents_arr', {
+      query_embedding: queryEmbedding, // number[]
+      match_count: 8
     });
 
     if (error) throw new Error(`Supabase search error: ${error.message}`);
