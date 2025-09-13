@@ -69,11 +69,13 @@ async function main() {
 
     console.log(`\nProcessing article: "${title}"`);
 
-    const contentChunks = chunkText(content).map((txt, idx) => ({ txt, idx }));
+    const contentChunks = chunkText(`${title}\n\n${content}`)
+      .map((txt, idx) => ({ txt, idx }))
+      .filter(c => c.txt.length >= 50);
     const BATCH = 50;
     
     for (let i = 0; i < contentChunks.length; i += BATCH) {
-      const batch = contentChunks.slice(i, i + BATCH).filter(b => b.txt.length >= 50);
+      const batch = contentChunks.slice(i, i + BATCH);
 
       if (batch.length === 0) continue;
 
