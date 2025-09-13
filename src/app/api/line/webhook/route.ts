@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { lineClient, validateSignature } from '@line/bot-sdk';
+import { validateSignature } from '@line/bot-sdk'; // validateSignatureだけ残す
+import { lineClient } from '@/lib/lineClient';      // lineClientはこちらから呼び出す
 import { handleTextMessage } from '@/lib/momoLogic';
 
 export async function POST(req: NextRequest) {
