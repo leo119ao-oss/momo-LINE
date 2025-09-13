@@ -8,7 +8,6 @@ const openai = new OpenAI({
 
 // JSDoc: ユーザー情報を取得または作成する関数
 async function findOrCreateParticipant(lineUserId: string) {
-  // ... (この部分は変更ありません)
   let { data: participant } = await supabase
     .from('participants')
     .select('*')
@@ -27,8 +26,6 @@ async function findOrCreateParticipant(lineUserId: string) {
   }
   return participant;
 }
-
-// ---ここからが新しいロジックです---
 
 type UserIntent = 'information_seeking' | 'personal_reflection';
 
@@ -55,7 +52,7 @@ async function detectUserIntent(userMessage: string): Promise<UserIntent> {
       temperature: 0,
     });
     const result = completion.choices[0].message.content?.trim();
-    console.log('Intent detection result:', result); // ★この行を追加！
+    console.log('Intent detection result:', result); // ★デバッグ用のログ
     if (result === 'information_seeking') {
       return 'information_seeking';
     }
@@ -161,8 +158,12 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
       })) as { role: 'user' | 'assistant'; content: string }[];
 
     const systemPrompt = `
-      あなたはMomo AIパートナー。母親であるユーザーの内省を支援する、熟練したカウンセラーです...
-      (このプロンプトは変更ありません)
+      あなたはMomo AIパートナー。母親であるユーザーの内省を支援する、熟練したカウンセラーです。
+      あなたの目的は、ただ話を聞き、共感し、ユーザーが自分自身の言葉で感情や思考を整理できるよう、優しく問いかけることです。
+      - 決して評価や判断をしないでください。
+      - 安易なアドバイスや励ましは避けてください。
+      - ユーザーの話を遮らず、深い傾聴を心がけてください。
+      - ユーザーが内省を深められるような、開かれた質問を投げかけてください。
     `;
 
     const completion = await openai.chat.completions.create({
