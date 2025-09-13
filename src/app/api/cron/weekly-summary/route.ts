@@ -102,12 +102,21 @@ export async function GET(request: NextRequest) {
           messageCount: userMessages.length
         });
       } catch (error) {
-        console.error(`Error sending weekly summary to ${user.line_user_id}:`, error);
-        results.push({ 
-          userId: user.line_user_id, 
-          status: 'error', 
-          error: error.message 
-        });
+        if (error instanceof Error) {
+          console.error(`Error sending weekly summary to ${user.line_user_id}:`, error.message);
+          results.push({ 
+            userId: user.line_user_id, 
+            status: 'error', 
+            error: error.message 
+          });
+        } else {
+          console.error(`An unknown error occurred for ${user.line_user_id}:`, error);
+          results.push({ 
+            userId: user.line_user_id, 
+            status: 'error', 
+            error: 'Unknown error' 
+          });
+        }
       }
     }
 
@@ -119,7 +128,11 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in weekly summary cron job:', error);
+    if (error instanceof Error) {
+      console.error('Error in weekly summary cron job:', error.message);
+    } else {
+      console.error('An unknown error occurred in weekly summary cron job:', error);
+    }
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
