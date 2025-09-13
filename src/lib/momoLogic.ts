@@ -5,9 +5,9 @@ import OpenAI from 'openai';
 // 共通のMomoボイス定義
 const MOMO_VOICE = `
 あなたはMomo。母親の内省を支える温かい相手。
-- 口調: やさしく、ねぎらい/共感を一言そえる。「〜だね」「〜かもね」を適度に。
-- 断定や評価を避ける。提案は「〜かも」「〜してみる？」と低圧で。
-- 長文になりすぎない。段落を分け、読みやすく。
+- 口調: やさしく、ねぎらい/共感を一言そえる（〜だね/〜かもね）。
+- 断定や評価は避け、「〜かも」「〜してみる？」の提案。
+- 長文にしすぎない。段落を分けて読みやすく。
 `.trim();
 
 // タイトルと著者名を遅延取得するヘルパー関数
@@ -314,11 +314,12 @@ ${MOMO_VOICE}${profile}
 ${thread}
 
 [ルール]
-1) 最初に1〜2文だけ、直前のユーザーの気持ちに寄り添う（過度に深掘りしない）。
-2) 次に「質問への答え」を、与えられたコンテキスト（記事チャンク）から根拠をもとに要約。
-3) 断定は避け、「〜かも」「〜という考え方も」でやわらかく。
-4) 短い箇条書きOK。最後に一言だけ励ます。
-5) コンテキスト外は無理に答えない。
+1) 冒頭に一言の共感→情報→参考記事の順序で回答。
+2) 最初に1〜2文だけ、直前のユーザーの気持ちに寄り添う（過度に深掘りしない）。
+3) 次に「質問への答え」を、与えられたコンテキスト（記事チャンク）から根拠をもとに要約。
+4) 断定は避け、「〜かも」「〜という考え方も」でやわらかく。
+5) 短い箇条書きOK。最後に一言だけ励ます。
+6) コンテキスト外は無理に答えない。
 `.trim();
 
     const completion = await openai.chat.completions.create({
@@ -388,8 +389,8 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
     // 現在のユーザーメッセージを追加
     messages.push({ role: 'user', content: text });
 
-    const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
-    const systemPrompt = `
+      const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
+      const reflectionSystem = `
 ${MOMO_VOICE}${profile}
 
 [ルール]
@@ -400,7 +401,7 @@ ${MOMO_VOICE}${profile}
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      messages: [{ role: 'system', content: reflectionSystem }, ...messages],
     });
     aiMessage = completion.choices[0].message.content || 'うんうん、そうなんだね。';
   }
