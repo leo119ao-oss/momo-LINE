@@ -18,44 +18,54 @@ function getSlugFromUrl(url: string): string | null {
   } catch { return null; }
 }
 
-async function fetchWpMetaByUrl(url: string) {
+function cleanText(s?: string) {
+  if (!s) return '';
+  // HTMLタグ除去 + サイト名サフィックスの軽い除去
+  return s.replace(/<[^>]*>/g, '').replace(/\s*\|\s*.*$/, '').trim();
+}
+
+async function fetchMetaFromOEmbed(url: string) {
+  const ep = `https://www.okaasan.net/wp-json/oembed/1.0/embed?url=${encodeURIComponent(url)}`;
+  const r = await fetch(ep, { cache: 'no-store' });
+  if (!r.ok) return null;
+  const j: any = await r.json();
+  const title = cleanText(j?.title);
+  const author = j?.author_name || 'お母さん大学';
+  return title ? { title, author_name: author } : null;
+}
+
+async function fetchMetaFromPosts(url: string) {
   const base = 'https://www.okaasan.net/wp-json/wp/v2/posts';
   const slug = getSlugFromUrl(url);
-  // 1) slug でピンポイント
   if (slug) {
     const r1 = await fetch(`${base}?slug=${encodeURIComponent(slug)}&_embed=author&per_page=1`);
     if (r1.ok) {
-      const j: any[] = await r1.json();
-      if (j[0]) {
-        const clean = (s: string) => s?.replace?.(/<[^>]*>/g,'')?.trim?.() ?? '';
-        return {
-          title: clean(j[0]?.title?.rendered),
-          author_name: j[0]?._embedded?.author?.[0]?.name || 'お母さん大学'
-        };
-      }
-    }
-  }
-  // 2) ダメなら search にフォールバック
-  const r2 = await fetch(`${base}?search=${encodeURIComponent(url)}&_embed=author&per_page=1`);
-  if (r2.ok) {
-    const j: any[] = await r2.json();
-    if (j[0]) {
-      const clean = (s: string) => s?.replace?.(/<[^>]*>/g,'')?.trim?.() ?? '';
-      return {
-        title: clean(j[0]?.title?.rendered),
-        author_name: j[0]?._embedded?.author?.[0]?.name || 'お母さん大学'
+      const arr: any[] = await r1.json();
+      const p = arr?.[0];
+      if (p) return {
+        title: cleanText(p?.title?.rendered),
+        author_name: p?._embedded?.author?.[0]?.name || 'お母さん大学',
       };
     }
   }
-  // 3) 最後の保険：HTMLの<title>を直取り
+  // URLでのsearchは精度が落ちるので最後の最後だけ
+  const r2 = await fetch(`${base}?search=${encodeURIComponent(url)}&_embed=author&per_page=1`);
+  if (r2.ok) {
+    const arr: any[] = await r2.json();
+    const p = arr?.[0];
+    if (p) return {
+      title: cleanText(p?.title?.rendered),
+      author_name: p?._embedded?.author?.[0]?.name || 'お母さん大学',
+    };
+  }
+  return null;
+}
+
+async function fetchTitleFromHtml(url: string) {
   try {
     const html = await (await fetch(url, { cache: 'no-store' })).text();
     const m = html.match(/<title>(.*?)<\/title>/i);
-    if (m?.[1]) {
-      // サイト名サフィックスを軽く除去（必要なら）
-      const t = m[1].replace(/\s*\|\s*.*$/,'').trim();
-      return { title: t, author_name: 'お母さん大学' };
-    }
+    if (m?.[1]) return { title: cleanText(m[1]), author_name: 'お母さん大学' };
   } catch {}
   return null;
 }
@@ -64,24 +74,33 @@ const metaCache = new Map<string, { title?: string; author_name?: string }>();
 
 export async function fillTitleAuthorIfMissing(hit: any) {
   if (hit.title && hit.author_name) return hit;
-  if (metaCache.has(hit.source_url)) {
-    const cached = metaCache.get(hit.source_url)!;
+
+  const cached = metaCache.get(hit.source_url);
+  if (cached) {
     hit.title = hit.title ?? cached.title;
     hit.author_name = hit.author_name ?? cached.author_name;
     return hit;
   }
-  const meta = await fetchWpMetaByUrl(hit.source_url);
+
+  // 1) oEmbed → 2) posts → 3) HTML の順
+  let meta = await fetchMetaFromOEmbed(hit.source_url);
+  if (!meta) meta = await fetchMetaFromPosts(hit.source_url);
+  if (!meta) meta = await fetchTitleFromHtml(hit.source_url);
+
   if (meta) {
     metaCache.set(hit.source_url, meta);
     hit.title = hit.title ?? meta.title;
     hit.author_name = hit.author_name ?? meta.author_name;
-    // 将来のためにDBもベストエフォートで更新
+
+    // 将来のためにDBにもベストエフォートで保存
     try {
       const { supabaseAdmin } = await import('@/lib/supabaseAdmin');
       await supabaseAdmin.from('documents')
         .update({ title: meta.title, author_name: meta.author_name })
         .eq('source_url', hit.source_url);
     } catch {}
+  } else {
+    console.warn('[RAG] meta fill failed for', hit.source_url);
   }
   return hit;
 }
