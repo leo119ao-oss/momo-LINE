@@ -239,11 +239,11 @@ async function detectUserIntent(userMessage: string): Promise<UserIntent> {
 /**
  * @JSDoc
  * 【新規追加】情報探索（質問）に対応するRAG処理を行う関数。
- * @param userMessage ユーザーからの質問
  * @param participant 参加者情報（会話履歴取得用）
+ * @param userMessage ユーザーからの質問
  * @returns AIが生成した回答と引用元URL
  */
-async function handleInformationSeeking(userMessage: string, participant: any): Promise<string> {
+async function handleInformationSeeking(participant: any, userMessage: string): Promise<string> {
   console.log('Handling information seeking intent...');
   try {
     // 1st try: 元のクエリでベクトル検索
@@ -365,7 +365,7 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
 
   if (intent === 'information_seeking') {
     // 【質問の場合】RAG処理を呼び出す
-    aiMessage = await handleInformationSeeking(text, participant);
+    aiMessage = await handleInformationSeeking(participant, text);
   } else {
     // 【つぶやきの場合】従来のカウンセラー応答
     console.log('Handling personal reflection intent...');
