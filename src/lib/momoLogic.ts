@@ -56,15 +56,17 @@ async function wpFallbackSearch(query: string, limit = 5) {
     const url = new URL('https://www.okaasan.net/wp-json/wp/v2/posts');
     url.searchParams.set('search', query);
     url.searchParams.set('per_page', String(limit));
-    url.searchParams.set('_fields', 'link,title,excerpt');
+    url.searchParams.set('_embed', 'author'); // 著者名を埋め込む
 
     const res = await fetch(url.toString(), { method: 'GET' });
     if (!res.ok) return [];
     const posts: any[] = await res.json();
 
+    const sanitize = (s: string) => s.replace(/<[^>]*>/g, '').trim();
     return posts.map(p => ({
       url: p.link as string,
-      title: (p.title?.rendered ?? '').replace(/<[^>]*>/g, ''),
+      title: sanitize(p.title?.rendered ?? ''),
+      author: String(p?._embedded?.author?.[0]?.name ?? 'お母さん大学'),
     }));
   } catch {
     return [];
@@ -226,7 +228,7 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
     if (picked.length === 0) {
       const wp = await wpFallbackSearch(userMessage, 5);
       if (wp.length) {
-        const list = wp.map((p, i) => `[${i+1}] ${p.title}\n${p.url}`).join('\n');
+        const list = wp.map((p, i) => `[${i+1}] ${p.title} — ${p.author}\n${p.url}`).join('\n');
         return `手元のベクトル検索では直接ヒットがなかったけど、近いテーマっぽい記事を見つけたよ。\n\n— 参考候補 —\n${list}`;
       }
       return 'ごめん、いま手元のデータからは関連が拾えなかった… もう少し違う聞き方も試してみて？';
@@ -256,8 +258,12 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
 
     const answer = completion.choices[0].message.content || 'すみません、うまくお答えできませんでした。';
     
-    // 引用の体裁を整える（番号付き）
-    const refs = sourceUrls.map((u, i) => `[${i+1}] ${u}`).join('\n');
+    // 引用の体裁を整える（番号＋タイトル — 著者＋URL）
+    const refs = picked.map((d: any, i: number) => {
+      const t = d.title ?? '(タイトル未取得)';
+      const a = d.author_name ?? 'お母さん大学';
+      return `[${i+1}] ${t} — ${a}\n${d.source_url}`;
+    }).join('\n');
     return `${answer}\n\n— 参考記事 —\n${refs}`;
 
   } catch (error) {
