@@ -1,4 +1,5 @@
-import { supabase } from './supabaseClient';
+// import { supabase } from './supabaseClient';
+import { supabaseAdmin } from './supabaseAdmin';
 import OpenAI from 'openai';
 
 // JSDoc: クライアントの初期化
@@ -8,14 +9,14 @@ const openai = new OpenAI({
 
 // JSDoc: ユーザー情報を取得または作成する関数
 async function findOrCreateParticipant(lineUserId: string) {
-  let { data: participant } = await supabase
+  let { data: participant } = await supabaseAdmin
     .from('participants')
     .select('*')
     .eq('line_user_id', lineUserId)
     .single();
 
   if (!participant) {
-    const { data: newParticipant, error } = await supabase
+    const { data: newParticipant, error } = await supabaseAdmin
       .from('participants')
       .insert({ line_user_id: lineUserId, archetype: 'B' })
       .select()
@@ -36,6 +37,9 @@ type UserIntent = 'information_seeking' | 'personal_reflection';
  * @returns 'information_seeking' (情報探索) または 'personal_reflection' (内省的なつぶやき)
  */
 async function detectUserIntent(userMessage: string): Promise<UserIntent> {
+  const quickAskRegex = /[？\?]|(どう|教えて|方法|何|どこ|いつ|おすすめ|使い方)/;
+  if (quickAskRegex.test(userMessage)) return 'information_seeking';
+  
   const prompt = `
     以下のユーザーメッセージが、「具体的な情報を求める質問」か「自身の感情や出来事についての内省的なつぶやき」かを分類してください。
     
@@ -93,7 +97,7 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
     const queryEmbedding = embeddingResponse.data[0].embedding;
 
     // 2. Supabase DBから関連情報を検索 (SQLで作成した関数を呼び出す)
-    const { data: documents, error } = await supabase.rpc('match_documents', {
+    const { data: documents, error } = await supabaseAdmin.rpc('match_documents', {
       query_embedding: queryEmbedding,
       match_threshold: 0.7, // 基準を少し下げてテスト
       match_count: 3,         // 最大3件のチャンクを取得
@@ -130,7 +134,8 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
     const answer = completion.choices[0].message.content || 'すみません、うまくお答えできませんでした。';
     
     // 4. 回答に引用元URLを付与
-    return `${answer}\n\n【参考記事】\n${sourceUrls.join('\n')}`;
+    const refs = sourceUrls.map((u, i) => `[${i+1}] ${u}`).join('\n');
+    return `${answer}\n\n— 参考記事 —\n${refs}`;
 
   } catch (error) {
     console.error('RAG process failed:', error);
@@ -146,7 +151,7 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
   const participant = await findOrCreateParticipant(userId);
 
   // ユーザーメッセージをログに保存
-  await supabase.from('chat_logs').insert({
+  await supabaseAdmin.from('chat_logs').insert({
     participant_id: participant.id,
     role: 'user',
     content: text,
@@ -162,7 +167,7 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
   } else {
     // 【つぶやきの場合】従来のカウンセラー応答
     console.log('Handling personal reflection intent...');
-    const { data: history } = await supabase
+    const { data: history } = await supabaseAdmin
       .from('chat_logs')
       .select('role, content')
       .eq('participant_id', participant.id)
@@ -213,7 +218,7 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
   }
 
   // AIの応答をログに保存
-  await supabase.from('chat_logs').insert({
+  await supabaseAdmin.from('chat_logs').insert({
     participant_id: participant.id,
     role: 'assistant',
     content: aiMessage,

@@ -1,3 +1,6 @@
+export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 import { NextRequest, NextResponse } from 'next/server';
 import { validateSignature } from '@line/bot-sdk'; // validateSignatureだけ残す
 import { lineClient } from '@/lib/lineClient';      // lineClientはこちらから呼び出す
@@ -26,6 +29,7 @@ export async function POST(req: NextRequest) {
         try {
           const replyMessage = await handleTextMessage(userId, userMessage);
 
+          // replyは一度きり。失敗時はpushしないでログのみ（ダブり防止）
           await lineClient.replyMessage(event.replyToken, {
             type: 'text',
             text: replyMessage,
