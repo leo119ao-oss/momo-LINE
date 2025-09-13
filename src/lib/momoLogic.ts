@@ -92,6 +92,9 @@ export async function fillTitleAuthorIfMissing(hit: any) {
     hit.title = hit.title ?? meta.title;
     hit.author_name = hit.author_name ?? meta.author_name;
 
+    // 成功時ログ（前後が分かるように）
+    console.log('RAG_META_HIT', { url: hit.source_url, title: hit.title, author: hit.author_name });
+
     // 将来のためにDBにもベストエフォートで保存
     try {
       const { supabaseAdmin } = await import('@/lib/supabaseAdmin');
@@ -100,7 +103,8 @@ export async function fillTitleAuthorIfMissing(hit: any) {
         .eq('source_url', hit.source_url);
     } catch {}
   } else {
-    console.warn('[RAG] meta fill failed for', hit.source_url);
+    // 失敗時ログ（既にあればタグ名だけ合わせる）
+    console.warn('RAG_META_MISS', hit.source_url);
   }
   return hit;
 }
@@ -354,10 +358,16 @@ async function handleInformationSeeking(participant: any, userMessage: string): 
     const picked = (filtered.length ? filtered : docs).slice(0, 5); // より多くの記事を返す
     console.log(`[RAG] after_filter: ${filtered.length}, picked: ${picked.length}`);
 
+    // picked に対して lazy-fill を回す直前
+    console.log('RAG_META_BEFORE', picked.map(p => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
+
     // タイトルと著者名を遅延取得
     for (let i = 0; i < picked.length; i++) {
       picked[i] = await fillTitleAuthorIfMissing(picked[i]);
     }
+
+    // picked に対して lazy-fill を回した直後
+    console.log('RAG_META_AFTER', picked.map(p => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
 
     // ここまでで picked.length が0ならフォールバック
     if (picked.length === 0) {
