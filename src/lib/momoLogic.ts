@@ -2,6 +2,26 @@
 import { supabaseAdmin } from './supabaseAdmin';
 import OpenAI from 'openai';
 
+async function wpFallbackSearch(query: string, limit = 5) {
+  try {
+    const url = new URL('https://www.okaasan.net/wp-json/wp/v2/posts');
+    url.searchParams.set('search', query);
+    url.searchParams.set('per_page', String(limit));
+    url.searchParams.set('_fields', 'link,title,excerpt');
+
+    const res = await fetch(url.toString(), { method: 'GET' });
+    if (!res.ok) return [];
+    const posts: any[] = await res.json();
+
+    return posts.map(p => ({
+      url: p.link as string,
+      title: (p.title?.rendered ?? '').replace(/<[^>]*>/g, ''),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 // JSDoc: クライアントの初期化
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -109,7 +129,13 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
     const filtered = (documents ?? []).filter((d: any) => (d.similarity ?? 0) >= MIN_SIM);
     const picked = (filtered.length ? filtered : (documents ?? [])).slice(0, 3);
 
+    // ここまでで picked.length が0ならフォールバック
     if (picked.length === 0) {
+      const wp = await wpFallbackSearch(userMessage, 5);
+      if (wp.length) {
+        const list = wp.map((p, i) => `[${i+1}] ${p.title}\n${p.url}`).join('\n');
+        return `手元のベクトル検索では直接ヒットがなかったけど、近いテーマっぽい記事を見つけたよ。\n\n— 参考候補 —\n${list}`;
+      }
       return 'ごめん、いま手元のデータからは関連が拾えなかった… もう少し違う聞き方も試してみて？';
     }
 
