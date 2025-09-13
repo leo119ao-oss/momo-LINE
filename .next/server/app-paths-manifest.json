@@ -1,7 +1,3 @@
 {
-  "/_not-found/page": "app/_not-found/page.js",
-  "/api/cron/daily-question/route": "app/api/cron/daily-question/route.js",
-  "/register/page": "app/register/page.js",
-  "/api/line/webhook/route": "app/api/line/webhook/route.js",
-  "/api/cron/weekly-summary/route": "app/api/cron/weekly-summary/route.js"
+  "/api/debug/rag/route": "app/api/debug/rag/route.js"
 }
