@@ -55,6 +55,7 @@ async function detectUserIntent(userMessage: string): Promise<UserIntent> {
       temperature: 0,
     });
     const result = completion.choices[0].message.content?.trim();
+    console.log('Intent detection result:', result); // ★この行を追加！
     if (result === 'information_seeking') {
       return 'information_seeking';
     }
