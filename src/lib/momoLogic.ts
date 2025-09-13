@@ -38,6 +38,20 @@ type UserIntent = 'information_seeking' | 'personal_reflection';
 async function detectUserIntent(userMessage: string): Promise<UserIntent> {
   const prompt = `
     以下のユーザーメッセージが、「具体的な情報を求める質問」か「自身の感情や出来事についての内省的なつぶやき」かを分類してください。
+    
+    質問の例：
+    - 「〜の方法を教えて」
+    - 「〜について知りたい」
+    - 「〜はどうすればいい？」
+    - 「あなたは何ができるの？」
+    - 「〜のコツは？」
+    
+    つぶやきの例：
+    - 「疲れた〜」
+    - 「今日は大変だった」
+    - 「なんだか悲しい」
+    - 「うれしい」
+    
     - 質問の場合は "information_seeking"
     - つぶやきの場合は "personal_reflection"
     とだけ回答してください。
@@ -115,7 +129,7 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
 
   } catch (error) {
     console.error('RAG process failed:', error);
-    return '申し訳ありません、情報の検索中にエラーが発生しました。';
+    return '申し訳ありません、情報の検索中にエラーが発生しました。もう一度お試しください。';
   }
 }
 
@@ -148,7 +162,7 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
       .select('role, content')
       .eq('participant_id', participant.id)
       .order('created_at', { ascending: false })
-      .limit(10);
+      .limit(9); // 最新のユーザーメッセージを除いて9件取得
     
     const messages = (history || [])
       .reverse()
@@ -157,6 +171,9 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
         content: log.content
       })) as { role: 'user' | 'assistant'; content: string }[];
 
+    // 現在のユーザーメッセージを追加
+    messages.push({ role: 'user', content: text });
+
     const systemPrompt = `
       あなたはMomo AIパートナー。母親であるユーザーの内省を支援する、熟練したカウンセラーです。
       あなたの目的は、ただ話を聞き、共感し、ユーザーが自分自身の言葉で感情や思考を整理できるよう、優しく問いかけることです。
@@ -164,6 +181,7 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
       - 安易なアドバイスや励ましは避けてください。
       - ユーザーの話を遮らず、深い傾聴を心がけてください。
       - ユーザーが内省を深められるような、開かれた質問を投げかけてください。
+      - 会話の流れを理解し、適切なタイミングで話題を変えたり、深めたりしてください。
     `;
 
     const completion = await openai.chat.completions.create({
