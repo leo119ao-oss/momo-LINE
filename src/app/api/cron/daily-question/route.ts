@@ -39,9 +39,9 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Supabaseのusersテーブルから全ユーザーを取得
+    // Supabaseのparticipantsテーブルから全ユーザーを取得
     const { data: users, error } = await supabase
-      .from('users')
+      .from('participants')
       .select('line_user_id');
 
     if (error) {
@@ -67,13 +67,17 @@ export async function GET(request: NextRequest) {
 
         results.push({ userId: user.line_user_id, status: 'success' });
       } catch (error) {
-        if (error instanceof Error) {
-          console.error(`Error sending message to ${user.line_user_id}:`, error.message);
-          results.push({ userId: user.line_user_id, status: 'error', error: error.message });
-        } else {
-          console.error(`An unknown error occurred for ${user.line_user_id}:`, error);
-          results.push({ userId: user.line_user_id, status: 'error', error: 'Unknown error' });
-        }
+        const errorMessage = error instanceof Error ? error.message : String(error);
+        
+        // エラーログをデータベースに保存
+        await supabase.from('line_push_errors').insert({
+          line_user_id: user.line_user_id,
+          payload: { text: selectedQuestion },
+          error: errorMessage
+        });
+        
+        console.error(`Error sending message to ${user.line_user_id}:`, errorMessage);
+        results.push({ userId: user.line_user_id, status: 'error', error: errorMessage });
       }
     }
 

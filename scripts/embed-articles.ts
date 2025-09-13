@@ -31,48 +31,74 @@ async function main() {
   const supabase = createClient(supabaseUrl, supabaseServiceKey);
   const openai = new OpenAI({ apiKey: openaiApiKey });
 
-  // 2. WordPressから記事データを取得
-  console.log('Fetching articles from okaasan.net...');
-  // per_page=100で最大100件取得します。全件取得する場合はページネーション処理が必要です。
-  const response = await fetch('https://www.okaasan.net/wp-json/wp/v2/posts?per_page=10'); // まずは10件でテスト
-  if (!response.ok) {
-    throw new Error(`Failed to fetch posts: ${response.statusText}`);
+  // 2. WordPressから記事データを取得（全記事をページネーションで取得）
+  console.log('Fetching all articles from okaasan.net...');
+  
+  let allPosts: any[] = [];
+  let page = 1;
+  let hasMorePages = true;
+  
+  while (hasMorePages) {
+    console.log(`Fetching page ${page}...`);
+    const response = await fetch(`https://www.okaasan.net/wp-json/wp/v2/posts?per_page=100&page=${page}`);
+    
+    if (!response.ok) {
+      throw new Error(`Failed to fetch posts: ${response.statusText}`);
+    }
+    
+    const posts: any[] = await response.json();
+    allPosts = allPosts.concat(posts);
+    
+    console.log(`Fetched ${posts.length} articles from page ${page}. Total so far: ${allPosts.length}`);
+    
+    // 100件未満の場合は最後のページ
+    hasMorePages = posts.length === 100;
+    page++;
+    
+    // APIレート制限を避けるため少し待機
+    await new Promise(resolve => setTimeout(resolve, 100));
   }
-  const posts: any[] = await response.json();
-  console.log(`Fetched ${posts.length} articles.`);
+  
+  console.log(`Total articles fetched: ${allPosts.length}`);
 
   // 3. 各記事を処理してベクトル化し、DBに保存
-  for (const post of posts) {
+  for (const post of allPosts) {
     const title = sanitizeHtml(post.title.rendered);
     const content = sanitizeHtml(post.content.rendered);
     const url = post.link;
 
     console.log(`\nProcessing article: "${title}"`);
 
-    const contentChunks = chunkText(content);
+    const contentChunks = chunkText(content).map((txt, idx) => ({ txt, idx }));
+    const BATCH = 50;
+    
+    for (let i = 0; i < contentChunks.length; i += BATCH) {
+      const batch = contentChunks.slice(i, i + BATCH).filter(b => b.txt.length >= 50);
 
-    for (const chunk of contentChunks) {
-      if (chunk.length < 50) continue; // 短すぎるチャンクは無視
+      if (batch.length === 0) continue;
 
-      // OpenAI Embedding APIでベクトル化
-      const embeddingResponse = await openai.embeddings.create({
+      // OpenAI Embedding APIでベクトル化（バッチ処理）
+      const emb = await openai.embeddings.create({
         model: 'text-embedding-3-small',
-        input: chunk,
+        input: batch.map(b => b.txt),
       });
 
-      const [embedding] = embeddingResponse.data;
-
-      // Supabaseに保存
-      const { error } = await supabase.from('documents').insert({
-        content: chunk,
+      const rows = batch.map((b, j) => ({
+        content: b.txt,
         source_url: url,
-        embedding: embedding.embedding,
-      });
+        chunk_idx: b.idx,
+        embedding: emb.data[j].embedding,
+      }));
+
+      // Supabaseにupsert（重複時は更新）
+      const { error } = await supabase
+        .from('documents')
+        .upsert(rows, { onConflict: 'source_url,chunk_idx' });
 
       if (error) {
-        console.error('Error inserting document:', error);
+        console.error('upsert error', error);
       } else {
-        console.log(` -> Stored chunk: "${chunk.substring(0, 40)}..."`);
+        console.log(` -> Stored batch: ${batch.length} chunks`);
       }
     }
   }
