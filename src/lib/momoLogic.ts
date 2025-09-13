@@ -2,6 +2,14 @@
 import { supabaseAdmin } from './supabaseAdmin';
 import OpenAI from 'openai';
 
+// 共通のMomoボイス定義
+const MOMO_VOICE = `
+あなたはMomo。母親の内省を支える温かい相手。
+- 口調: やさしく、ねぎらい/共感を一言そえる。「〜だね」「〜かもね」を適度に。
+- 断定や評価を避ける。提案は「〜かも」「〜してみる？」と低圧で。
+- 長文になりすぎない。段落を分け、読みやすく。
+`.trim();
+
 function expandJaQuery(q: string) {
   const norms: Array<[RegExp, string]> = [
     // 天気・環境関連
@@ -101,6 +109,32 @@ async function findOrCreateParticipant(lineUserId: string) {
 
 type UserIntent = 'information_seeking' | 'personal_reflection';
 
+// モード切替のヒステリシス用
+let lastMode: 'information_seeking' | 'personal_reflection' | null = null;
+
+function chooseMode(intent: UserIntent, text: string): UserIntent {
+  // 質問記号などがあれば即IS
+  if (/[？\?]/.test(text)) return 'information_seeking';
+  // 直近がreflectionで今回も短文なら継続
+  if (lastMode === 'personal_reflection' && text.length < 25) return 'personal_reflection';
+  return intent;
+}
+
+// 会話コンテキストを取得する共通関数
+async function getConversationContext(participantId: number) {
+  const { data: logs } = await supabaseAdmin
+    .from('chat_logs')
+    .select('role, content')
+    .eq('participant_id', participantId)
+    .order('created_at', { ascending: false })
+    .limit(8);
+
+  const recent = (logs ?? []).reverse();
+  const lastUser = [...recent].reverse().find(l => l.role === 'user')?.content ?? '';
+  const thread = recent.map(l => `${l.role === 'user' ? 'U' : 'AI'}: ${l.content}`).join('\n');
+  return { lastUser, thread };
+}
+
 /**
  * @JSDoc
  * 【新規追加】ユーザーのメッセージの意図を判別する「受付係」AI。
@@ -184,18 +218,8 @@ async function detectUserIntent(userMessage: string): Promise<UserIntent> {
 async function handleInformationSeeking(userMessage: string, participant: any): Promise<string> {
   console.log('Handling information seeking intent...');
   try {
-    // 直近の会話履歴を取得（パーソナライゼーション用）
-    const { data: history } = await supabaseAdmin
-      .from('chat_logs')
-      .select('role, content')
-      .eq('participant_id', participant.id)
-      .order('created_at', { ascending: false })
-      .limit(8);
-
-    const recent = (history ?? []).reverse();
-    const userContext = recent
-      .map(l => `${l.role === 'user' ? 'U' : 'AI'}: ${l.content}`)
-      .join('\n');
+    // 会話コンテキストを取得
+    const { lastUser, thread } = await getConversationContext(participant.id);
     // 1st try: 元のクエリでベクトル検索
     let queryText = userMessage;
     const embeddingResponse = await openai.embeddings.create({
@@ -252,25 +276,25 @@ async function handleInformationSeeking(userMessage: string, participant: any): 
 
     const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
     const systemPrompt = `
-      あなたは「okaasan.net」の知識を持つ、温かく親しみやすい相談相手です。${profile}
-      以下はユーザーとの最近の会話です。口調や配慮点の参考にしてください（事実の断定はしない）:
-      ---
-      ${userContext}
-      ---
-      提供されたコンテキスト情報（記事チャンク）に基づいて、ユーザーの質問に自然で親しみやすい日本語で回答してください。
-      
-      応答のスタイル：
-      - 温かく親しみやすい口調で
-      - 必要以上に堅苦しくならない
-      - ユーザーの気持ちに寄り添う
-      - コンテキストにない情報は「すみません、そのことについては詳しくわからないのですが...」と自然に伝える
-    `;
+${MOMO_VOICE}${profile}
+
+[最近の会話ログ]
+${thread}
+
+[ルール]
+1) 最初に1〜2文だけ、直前のユーザーの気持ちに寄り添う（過度に深掘りしない）。
+2) 次に「質問への答え」を、与えられたコンテキスト（記事チャンク）から根拠をもとに要約。
+3) 断定は避け、「〜かも」「〜という考え方も」でやわらかく。
+4) 短い箇条書きOK。最後に一言だけ励ます。
+5) コンテキスト外は無理に答えない。
+`.trim();
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
+      temperature: 0.5,
       messages: [
         { role: 'system', content: systemPrompt },
-        { role: 'user', content: `コンテキスト:\n${contextText}\n\n質問: ${userMessage}` },
+        { role: 'user', content: `コンテキスト:\n${contextText}\n\n質問: ${userMessage}\n\n直前ユーザー発話: ${lastUser}` }
       ],
     });
 
@@ -305,8 +329,10 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
   });
 
   // ユーザーの意図を判別
-  const intent = await detectUserIntent(text);
-  console.log(`[Intent] User message: "${text}" -> Intent: ${intent}`);
+  const rawIntent = await detectUserIntent(text);
+  const intent = chooseMode(rawIntent, text);
+  lastMode = intent;
+  console.log(`[Intent] User message: "${text}" -> Raw: ${rawIntent} -> Final: ${intent}`);
   let aiMessage: string;
 
   if (intent === 'information_seeking') {
@@ -334,30 +360,13 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
 
     const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
     const systemPrompt = `
-      あなたはMomo AIパートナー。母親であるユーザーの内省を支援する、温かく親しみやすい存在です。${profile}
-      
-      あなたの役割：
-      - ユーザーの話を温かく受け止め、共感を示す
-      - 質問責めではなく、自然な会話の流れを作る
-      - ユーザーが話したいことを自由に話せる環境を作る
-      
-      応答のスタイル：
-      - 「そうなんだね」「うんうん」「なるほど」など、相づちを多用する
-      - 質問は最小限に留め、ユーザーが自発的に話したくなるような雰囲気を作る
-      - ユーザーの感情に寄り添い、そのまま受け止める
-      - 必要以上に深く掘り下げようとせず、ユーザーのペースに合わせる
-      
-      避けるべきこと：
-      - 連続した質問
-      - 評価や判断
-      - 安易なアドバイスや励まし
-      - 話を遮ること
-      
-      自然な会話例：
-      「疲れた〜」→「お疲れさま。ゆっくり休んでね」
-      「今日は大変だった」→「そうだったんだね。お疲れさま」
-      「子どもが言うことを聞かなくて」→「うんうん、そういう時もあるよね」
-    `;
+${MOMO_VOICE}${profile}
+
+[ルール]
+- 相づち→ねぎらい→一息つける提案を1つだけ。
+- 連続質問はしない。問いは最大1つ。
+- ユーザーの表現を少し言い換えて返す（ミラーリング）。
+`.trim();
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
