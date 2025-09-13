@@ -178,11 +178,24 @@ async function detectUserIntent(userMessage: string): Promise<UserIntent> {
  * @JSDoc
  * 【新規追加】情報探索（質問）に対応するRAG処理を行う関数。
  * @param userMessage ユーザーからの質問
+ * @param participant 参加者情報（会話履歴取得用）
  * @returns AIが生成した回答と引用元URL
  */
-async function handleInformationSeeking(userMessage: string): Promise<string> {
+async function handleInformationSeeking(userMessage: string, participant: any): Promise<string> {
   console.log('Handling information seeking intent...');
   try {
+    // 直近の会話履歴を取得（パーソナライゼーション用）
+    const { data: history } = await supabaseAdmin
+      .from('chat_logs')
+      .select('role, content')
+      .eq('participant_id', participant.id)
+      .order('created_at', { ascending: false })
+      .limit(8);
+
+    const recent = (history ?? []).reverse();
+    const userContext = recent
+      .map(l => `${l.role === 'user' ? 'U' : 'AI'}: ${l.content}`)
+      .join('\n');
     // 1st try: 元のクエリでベクトル検索
     let queryText = userMessage;
     const embeddingResponse = await openai.embeddings.create({
@@ -237,9 +250,14 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
     const contextText = picked.map((d: any) => d.content).join('\n---\n');
     const sourceUrls = Array.from(new Set(picked.map((d: any) => d.source_url)));
 
+    const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
     const systemPrompt = `
-      あなたは「okaasan.net」の知識を持つ、温かく親しみやすい相談相手です。
-      提供されたコンテキスト情報に基づいて、ユーザーの質問に自然で親しみやすい日本語で回答してください。
+      あなたは「okaasan.net」の知識を持つ、温かく親しみやすい相談相手です。${profile}
+      以下はユーザーとの最近の会話です。口調や配慮点の参考にしてください（事実の断定はしない）:
+      ---
+      ${userContext}
+      ---
+      提供されたコンテキスト情報（記事チャンク）に基づいて、ユーザーの質問に自然で親しみやすい日本語で回答してください。
       
       応答のスタイル：
       - 温かく親しみやすい口調で
@@ -293,7 +311,7 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
 
   if (intent === 'information_seeking') {
     // 【質問の場合】RAG処理を呼び出す
-    aiMessage = await handleInformationSeeking(text);
+    aiMessage = await handleInformationSeeking(text, participant);
   } else {
     // 【つぶやきの場合】従来のカウンセラー応答
     console.log('Handling personal reflection intent...');
@@ -314,8 +332,9 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
     // 現在のユーザーメッセージを追加
     messages.push({ role: 'user', content: text });
 
+    const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
     const systemPrompt = `
-      あなたはMomo AIパートナー。母親であるユーザーの内省を支援する、温かく親しみやすい存在です。
+      あなたはMomo AIパートナー。母親であるユーザーの内省を支援する、温かく親しみやすい存在です。${profile}
       
       あなたの役割：
       - ユーザーの話を温かく受け止め、共感を示す
@@ -354,5 +373,50 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
     content: aiMessage,
   });
 
+  // プロフィール要約を非同期で更新（ベストエフォート）
+  updateProfileSummary(participant.id).catch(console.error);
+
   return aiMessage;
+}
+
+/**
+ * @JSDoc
+ * 【新規追加】ユーザーのプロフィール要約を更新する関数（非同期実行）
+ * @param participantId 参加者ID
+ */
+async function updateProfileSummary(participantId: number) {
+  const { data: logs } = await supabaseAdmin
+    .from('chat_logs')
+    .select('role, content')
+    .eq('participant_id', participantId)
+    .order('created_at', { ascending: true })
+    .limit(50);
+
+  const transcript = (logs ?? [])
+    .map(l => `${l.role === 'user' ? 'U' : 'AI'}: ${l.content}`)
+    .join('\n');
+
+  const prompt = `
+以下の会話ログから、ユーザーに関する「継続的に役立つ情報」（子どもの年齢感/好み/配慮点/口調の好み/通知の希望など）を
+事実ベースで200字以内に日本語で箇条書き要約してください。推測や機微な情報は書かないでください。
+---
+${transcript}
+  `.trim();
+
+  try {
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0,
+    });
+    const summary = completion.choices[0].message.content?.trim() ?? null;
+    if (summary) {
+      await supabaseAdmin.from('participants')
+        .update({ profile_summary: summary })
+        .eq('id', participantId);
+      console.log(`[Profile] Updated summary for participant ${participantId}`);
+    }
+  } catch (e) { 
+    console.error('updateProfileSummary failed', e); 
+  }
 }
