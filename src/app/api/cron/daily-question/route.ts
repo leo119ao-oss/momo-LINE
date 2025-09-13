@@ -67,8 +67,13 @@ export async function GET(request: NextRequest) {
 
         results.push({ userId: user.line_user_id, status: 'success' });
       } catch (error) {
-        console.error(`Error sending message to ${user.line_user_id}:`, error);
-        results.push({ userId: user.line_user_id, status: 'error', error: error.message });
+        if (error instanceof Error) {
+          console.error(`Error sending message to ${user.line_user_id}:`, error.message);
+          results.push({ userId: user.line_user_id, status: 'error', error: error.message });
+        } else {
+          console.error(`An unknown error occurred for ${user.line_user_id}:`, error);
+          results.push({ userId: user.line_user_id, status: 'error', error: 'Unknown error' });
+        }
       }
     }
 
@@ -81,7 +86,11 @@ export async function GET(request: NextRequest) {
     });
 
   } catch (error) {
-    console.error('Error in daily question cron job:', error);
+    if (error instanceof Error) {
+      console.error('Error in daily question cron job:', error.message);
+    } else {
+      console.error('An unknown error occurred in daily question cron job:', error);
+    }
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });
   }
 }
