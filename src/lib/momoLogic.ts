@@ -2,6 +2,20 @@
 import { supabaseAdmin } from './supabaseAdmin';
 import OpenAI from 'openai';
 
+function expandJaQuery(q: string) {
+  const norms: Array<[RegExp, string]> = [
+    [/雨の日/g, '雨の日 室内 家の中 おうち遊び 外出できない日'],
+    [/イライラ/g, 'イライラ ストレス 気持ちの波 モヤモヤ'],
+    [/寝かしつけ|ねかしつけ/g, '寝かしつけ 入眠 寝つき 夜泣き'],
+    [/離乳食/g, '離乳食 食べない 食事 偏食 取り分け'],
+  ];
+  let out = q;
+  for (const [re, add] of norms) {
+    if (re.test(q)) out += ' ' + add;
+  }
+  return out;
+}
+
 async function wpFallbackSearch(query: string, limit = 5) {
   try {
     const url = new URL('https://www.okaasan.net/wp-json/wp/v2/posts');
@@ -109,10 +123,11 @@ async function detectUserIntent(userMessage: string): Promise<UserIntent> {
 async function handleInformationSeeking(userMessage: string): Promise<string> {
   console.log('Handling information seeking intent...');
   try {
-    // 1. 質問をベクトル化
+    // 1st try: 元のクエリでベクトル検索
+    let queryText = userMessage;
     const embeddingResponse = await openai.embeddings.create({
       model: 'text-embedding-3-small',
-      input: userMessage,
+      input: queryText,
     });
     const queryEmbedding = embeddingResponse.data[0].embedding;
 
@@ -124,10 +139,27 @@ async function handleInformationSeeking(userMessage: string): Promise<string> {
 
     if (error) throw new Error(`Supabase search error: ${error.message}`);
     
+    let docs = documents ?? [];
+
+    // 0件なら 2nd try with expanded query
+    if (!docs.length) {
+      const expanded = expandJaQuery(userMessage);
+      if (expanded !== userMessage) {
+        const emb2 = await openai.embeddings.create({
+          model: 'text-embedding-3-small',
+          input: expanded,
+        });
+        const { data: docs2 } = await supabaseAdmin.rpc('match_documents_arr', {
+          query_embedding: emb2.data[0].embedding, match_count: 8
+        });
+        docs = docs2 ?? [];
+      }
+    }
+    
     // documents には similarity を含む前提（match_documents_arr）
     const MIN_SIM = 0.25; // 日本語×smallモデルなら 0.2〜0.35 が現実的
-    const filtered = (documents ?? []).filter((d: any) => (d.similarity ?? 0) >= MIN_SIM);
-    const picked = (filtered.length ? filtered : (documents ?? [])).slice(0, 3);
+    const filtered = docs.filter((d: any) => (d.similarity ?? 0) >= MIN_SIM);
+    const picked = (filtered.length ? filtered : docs).slice(0, 3);
 
     // ここまでで picked.length が0ならフォールバック
     if (picked.length === 0) {
