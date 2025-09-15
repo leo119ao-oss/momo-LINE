@@ -10,6 +10,67 @@ const MOMO_VOICE = `
 - 長文にしすぎない。段落を分けて読みやすく。
 `.trim();
 
+// 理由パースのユーティリティ
+function _clean(s: any) {
+  return String(s ?? '')
+    .replace(/^\s*["'\u3000]+|["'\u3000]+\s*$/g, '')
+    .replace(/\s+/g, ' ')
+    .slice(0, 140);
+}
+
+function parseReasons(raw: string, want: number): string[] {
+  let t = (raw || '').trim();
+  // コードフェンス/言語ラベル除去
+  t = t.replace(/```[\s\S]*?```/g, (m) => m.replace(/```json|```/g, '')).trim();
+  t = t.replace(/^```json|^```|```$/gm, '').trim();
+  // 1) 素直にJSON（配列 or {reasons:[]})
+  try {
+    const j = JSON.parse(t);
+    if (Array.isArray(j)) return j.map(_clean).slice(0, want);
+    if (Array.isArray((j as any).reasons)) return (j as any).reasons.map(_clean).slice(0, want);
+  } catch {}
+  // 2) 角カッコの部分だけ取り出して再パース
+  const m = t.match(/\[[\s\S]*\]/);
+  if (m) {
+    try {
+      const arr = JSON.parse(m[0]);
+      if (Array.isArray(arr)) return arr.map(_clean).slice(0, want);
+    } catch {}
+  }
+  // 3) 箇条書き/番号行のフォールバック
+  const lines = t.split('\n')
+    .map(l => l
+      .replace(/^\s*[-*]\s*/, '')
+      .replace(/^\s*\d+[\.\)]\s*/, '')
+      .trim())
+    .filter(Boolean);
+  return lines.map(_clean).slice(0, want);
+}
+
+async function generateOneReason(
+  userMessage: string,
+  item: { url: string; snippet: string }
+): Promise<string> {
+  const sys = `あなたは記事レコメンドの編集者。以下の候補が質問に「なぜ役立つか」を日本語で１文だけ返す。
+- 断定せず「〜に役立ちそう」「〜のヒントがある」等のやわらかい表現
+- 具体語を１つ入れる（年齢帯/場面/活動など）
+- 出力は１文のみ（飾りや箇条書き禁止）`;
+  const prompt = `質問: ${userMessage}
+候補URL: ${item.url}
+抜粋: """${item.snippet.slice(0, 400)}"""
+=> １文だけ出力`;
+  try {
+    const r = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.2,
+      messages: [{ role: 'system', content: sys }, { role: 'user', content: prompt }],
+    });
+    return _clean(r.choices[0].message.content ?? '');
+  } catch {
+    return 'このテーマに関する実践的なヒントがまとまっています。';
+  }
+}
+
 function getSlugFromUrl(url: string): string | null {
   try {
     const u = new URL(url);
@@ -126,6 +187,9 @@ export async function buildReferenceBlock(userMessage: string, picked: any[]) {
   }));
   const reasons = await makeOneSentenceReasons(userMessage, reasonInputs);
 
+  // 失敗検知のログ
+  console.log('RAG_REASONS', { want: reasonInputs.length, got: reasons.length, bad: reasons.filter(r => !r || r==='json').length });
+
   // ビルド情報とログ
   const BUILD = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0,7) ?? 'local';
   console.log('RAG_FMT', { topk: picked.length, hasReasons: !!reasons?.length, build: BUILD });
@@ -138,40 +202,47 @@ export async function buildReferenceBlock(userMessage: string, picked: any[]) {
   return `${refs}\n\n(β ${BUILD})`;  // ★一時的
 }
 
+// まずはバッチJSONで作り、壊れていたら１件ずつ生成にフォールバック
 async function makeOneSentenceReasons(
   userMessage: string,
   items: { url: string; snippet: string }[]
 ): Promise<string[]> {
-  const sys = `
-あなたは記事レコメンドの編集者です。各候補が「ユーザーの質問に対してなぜ有用か」を日本語で１文ずつ書きます。
-- 断定調は避け、「〜に役立ちそう」「〜のヒントがある」とやわらかく。
-- 具体語を1つ入れる（例: 年齢帯/具体アクティビティ/場面など）。
-- 出力は JSON 配列（文字列3要素のみ）。`.trim();
-
+  const want = items.length;
+  const sys = `あなたは記事レコメンドの編集者。各候補が質問に「なぜ役立つか」を日本語で１文ずつ作成し、
+配列だけをJSONで返す（前後の文章・コードフェンス禁止）。`;
   const list = items.map((it, i) =>
-    `[${i+1}] URL: ${it.url}\n抜粋: """${it.snippet.substring(0, 400)}"""`
+    `[${i+1}] URL: ${it.url}\n抜粋: """${it.snippet.slice(0, 400)}"""`
   ).join('\n');
-
-  const prompt = `質問: ${userMessage}\n候補:\n${list}\n\n上記に対応する３つの理由を JSON 配列で返してください。`;
+  const prompt = `質問: ${userMessage}
+候補:
+${list}
+=> １文×${want}個。JSON配列のみで返す`;
   try {
     const resp = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      temperature: 0.2,
+      temperature: 0.1,
+      // JSON配列を強制（対応モデル）
+      response_format: { type: 'json_object' },
       messages: [{ role: 'system', content: sys }, { role: 'user', content: prompt }],
     });
-    const txt = resp.choices[0].message.content ?? '[]';
-    try {
-      const arr = JSON.parse(txt);
-      if (Array.isArray(arr) && arr.length) return arr.map(String).slice(0, items.length);
-    } catch {
-      // フォールバック：行分割
-      return txt.split('\n').map(s => s.replace(/^\s*[\[\(]?\d+[\]\).]\s*/, '').trim()).filter(Boolean).slice(0, items.length);
+    const raw = resp.choices[0].message.content ?? '[]';
+    // JSONモードでも念のため堅牢パース
+    let reasons = parseReasons(raw, want);
+    // 個数が不足/空なら１件ずつ生成
+    if (reasons.length < want || reasons.some(r => !r || r.toLowerCase() === 'json')) {
+      const each = [];
+      for (const it of items) each.push(await generateOneReason(userMessage, it));
+      reasons = each;
     }
+    // それでも足りなければ埋め草
+    while (reasons.length < want) reasons.push('このテーマの理解に役立ちそうです。');
+    return reasons.slice(0, want);
   } catch (e) {
-    console.warn('REASON_GEN_FAIL', e);
+    // 最終フォールバック：全部１件ずつ
+    const each = [];
+    for (const it of items) each.push(await generateOneReason(userMessage, it));
+    return each;
   }
-  // 最終フォールバック
-  return items.map(() => 'このテーマに関する実践的なヒントがまとまっています。');
 }
 
 function expandJaQuery(q: string) {
