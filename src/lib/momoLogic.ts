@@ -589,6 +589,34 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
     content: text,
   });
 
+  // 未回答の画像があればキャプション確定（最優先）
+  const { data: pending } = await supabaseAdmin
+    .from('media_entries')
+    .select('*')
+    .eq('participant_id', participant.id)
+    .eq('status', 'awaiting')
+    .order('created_at', { ascending: false })
+    .limit(1);
+
+  if (pending?.length) {
+    const m = pending[0];
+    const openai = new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY! });
+    const sys = 'あなたは写真日記の編集者。ユーザーの一言を活かし、やさしい1文キャプションを作る。';
+    const prompt = `画像メモ: ${m.guess}\nユーザーの追記: ${text}\n→ 30〜60字の一文キャプションで。`;
+    const c = await openai.chat.completions.create({ 
+      model:'gpt-4o-mini', 
+      messages:[{role:'system',content:sys},{role:'user',content:prompt}], 
+      temperature:0.3 
+    });
+    const caption = c.choices[0].message.content?.trim() || text.trim();
+    await supabaseAdmin.from('media_entries').update({ 
+      user_answer: text, 
+      caption, 
+      status:'done' 
+    }).eq('id', m.id);
+    return `できたよ。\n「${caption}」\n（このあと一覧ページも作れるようにするね）\n${m.image_url}`;
+  }
+
   // 直近の同意待ちを確認
   const { data: pi } = await supabaseAdmin
     .from('pending_intents')

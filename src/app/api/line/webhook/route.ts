@@ -9,44 +9,66 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import type { MessageEvent } from '@line/bot-sdk';
 
 async function handleImage(event: MessageEvent){
+  console.log('IMG_EVENT: Processing image message', event.message.id);
   const userId = event.source.userId!;
-  // 画像取得
-  const stream = await lineClient.getMessageContent(event.message.id);
-  const chunks:any[] = [];
-  for await (const c of stream) chunks.push(c);
-  const buf = Buffer.concat(chunks);
+  
+  try {
+    // 画像取得
+    const stream = await lineClient.getMessageContent(event.message.id);
+    const chunks:any[] = [];
+    for await (const c of stream) chunks.push(c);
+    const buf = Buffer.concat(chunks);
 
-  // Supabase Storage に保存（公開URL）
-  const path = `images/${userId}/${event.message.id}.jpg`;
-  const { data:upload, error } = await supabaseAdmin.storage.from('media').upload(path, buf, { upsert: true, contentType: 'image/jpeg' });
-  if(error) throw error;
-  const { data: pub } = supabaseAdmin.storage.from('media').getPublicUrl(path);
-  const imageUrl = pub.publicUrl;
+    // Supabase Storage に保存（公開URL）
+    const path = `images/${userId}/${event.message.id}.jpg`;
+    const { data:upload, error } = await supabaseAdmin.storage.from('media').upload(path, buf, { 
+      contentType: 'image/jpeg', 
+      upsert: true 
+    });
+    if(error) {
+      console.error('Storage upload error:', error);
+      throw error;
+    }
+    
+    const { publicUrl } = supabaseAdmin.storage.from('media').getPublicUrl(path).data;
+    console.log('IMG_EVENT: Image saved to', publicUrl);
 
-  // 軽い画像説明（4o-mini vision）
-  const openai = new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY! });
-  const sys = 'あなたは写真をやさしく説明する編集者。1文で「〜っぽいね」のトーン。';
-  const visMsg:any = [
-    { role:'system', content: sys },
-    { role:'user', content: [
-        { type:'text', text:'この画像は何に見える？1文で' },
-        { type:'image_url', image_url:{ url: imageUrl } }
-    ]}
-  ];
-  const g = await openai.chat.completions.create({ model:'gpt-4o-mini', messages: visMsg, temperature:0.2 });
-  const guess = g.choices[0].message.content?.trim() || '日常の一コマかな？';
+    // 軽い画像説明（4o-mini vision）
+    const openai = new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY! });
+    const sys = 'あなたは写真をやさしく説明する編集者。1文で「〜っぽいね」のトーン。';
+    const visMsg:any = [
+      { role:'system', content: sys },
+      { role:'user', content: [
+          { type:'text', text:'この画像は何に見える？1文で' },
+          { type:'image_url', image_url:{ url: publicUrl } }
+      ]}
+    ];
+    const g = await openai.chat.completions.create({ model:'gpt-4o-mini', messages: visMsg, temperature:0.2 });
+    const guess = g.choices[0].message.content?.trim() || '日常の一コマかな？';
+    console.log('IMG_EVENT: Generated guess:', guess);
 
-  // DBにpendingとして保存
-  const { data: part } = await supabaseAdmin.from('participants').select('id').eq('line_user_id', userId).single();
-  await supabaseAdmin.from('media_entries').insert({
-    participant_id: part!.id, image_url: imageUrl, guess, status:'awaiting'
-  });
+    // DBにpendingとして保存
+    const { data: part } = await supabaseAdmin.from('participants').select('id').eq('line_user_id', userId).single();
+    await supabaseAdmin.from('media_entries').insert({
+      participant_id: part!.id, image_url: publicUrl, guess, status:'awaiting'
+    });
+    console.log('IMG_EVENT: Saved to media_entries');
 
-  // ユーザーへ確認質問
-  await lineClient.replyMessage(event.replyToken, {
-    type:'text',
-    text: `${guess}\nあってる？ ひとこと教えてくれたら、絵日記のキャプションに仕立てるね。`
-  });
+    // ユーザーへ確認質問（1文で）
+    const responseText = `${guess}\nあってる？`;
+    await lineClient.replyMessage(event.replyToken, {
+      type:'text',
+      text: responseText
+    });
+    console.log('IMG_EVENT: Sent response:', responseText);
+    
+  } catch (error) {
+    console.error('IMG_EVENT: Error processing image:', error);
+    await lineClient.replyMessage(event.replyToken, {
+      type:'text',
+      text: '画像の処理でエラーが発生しました。もう一度お試しください。'
+    });
+  }
 }
 
 export async function POST(req: NextRequest) {
