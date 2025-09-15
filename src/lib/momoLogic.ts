@@ -522,7 +522,16 @@ async function handleInformationSeeking(participant: any, userMessage: string): 
         const refs = await buildReferenceBlock(userMessage, wpAsPicked);
         return `手元のベクトル検索では直接ヒットがなかったけど、近いテーマの記事を見つけたよ。\n\n— 参考記事 —\n${refs}`;
       }
-      return 'ごめん、いま手元のデータからは関連が拾えなかった… もう少し違う聞き方も試してみて？';
+      
+      // 同意フラグを保存し、質問
+      const exp = new Date(Date.now()+ 1000*60*10).toISOString(); // 10分有効
+      await supabaseAdmin.from('pending_intents').insert({
+        participant_id: participant.id,
+        kind: 'web_search',
+        payload: { query: userMessage },
+        expires_at: exp
+      });
+      return '手元の知識では見つからなかったよ。\nよかったらネットでも調べようか？（はい / いいえ）';
     }
 
     const contextText = picked.map((d: any) => d.content).join('\n---\n');
@@ -579,6 +588,45 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
     role: 'user',
     content: text,
   });
+
+  // 直近の同意待ちを確認
+  const { data: pi } = await supabaseAdmin
+    .from('pending_intents')
+    .select('*')
+    .eq('participant_id', participant.id)
+    .eq('kind','web_search')
+    .gt('expires_at', new Date().toISOString())
+    .order('created_at',{ascending:false})
+    .limit(1);
+
+  const yes = /^(はい|うん|ok|お願いします|お願い|調べて|いいよ)/i.test(text.trim());
+  const no  = /^(いいえ|いらない|大丈夫|結構)/i.test(text.trim());
+
+  if (pi && pi.length){
+    if (yes){
+      await supabaseAdmin.from('pending_intents').delete().eq('id', pi[0].id);
+      const url = new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
+      url.pathname = '/api/search/google'; 
+      url.searchParams.set('q', (pi[0].payload as any)?.query || text);
+      const r = await fetch(url.toString()); 
+      const { items } = await r.json();
+      if(!items?.length) return '検索してみたけれど、めぼしい情報は見つからなかったよ。';
+      // 4o-miniで3件要約
+      const digest = items.slice(0,3).map((it:any,i:number)=>`[${i+1}] ${it.title}\n${it.snippet}\n${it.link}`).join('\n\n');
+      const sys = 'あなたはリサーチアシスタント。上の候補を3行で要約し、最後に「次の一歩」を1文添える。装飾不可。';
+      const oai = new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY! });
+      const c = await oai.chat.completions.create({ 
+        model:'gpt-4o-mini', 
+        temperature:0.2,
+        messages:[{role:'system',content:sys},{role:'user',content:digest}]
+      });
+      return c.choices[0].message.content || digest;
+    } else if (no){
+      await supabaseAdmin.from('pending_intents').delete().eq('id', pi[0].id);
+      return '了解。また必要になったら声かけてね。';
+    }
+    // 同意/拒否でない普通の文章 → 何もしない（通常フロー続行）
+  }
 
   // ユーザーの意図を判別
   const rawIntent = await detectUserIntent(text);
