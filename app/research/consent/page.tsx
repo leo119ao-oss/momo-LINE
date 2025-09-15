@@ -70,7 +70,6 @@ export default function Page() {
 function Shell({children}:{children:any}) {
   return (
     <main style={{maxWidth:560, margin:"0 auto", padding:"20px 16px"}}>
-      <div style={banner}>momo 研究モード</div>
       {children}
     </main>
   );

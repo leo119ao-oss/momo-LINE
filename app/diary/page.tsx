@@ -72,7 +72,7 @@ export default function Page(){
   );
 }
 
-function Shell({children}:{children:any}){ return <main style={{maxWidth:560, margin:"0 auto", padding:"20px 16px"}}><div style={banner}>momo 研究モード</div>{children}</main> }
+function Shell({children}:{children:any}){ return <main style={{maxWidth:560, margin:"0 auto", padding:"20px 16px"}}>{children}</main> }
 const banner = {background:"#FFF0F4", color:"#FF6F91", padding:"8px 12px", borderRadius:10, fontSize:12, textAlign:"center" as const, marginBottom:12};
 const h1 = {fontSize:22, fontWeight:700, margin:"4px 0 8px"};
 const card = {background:"#fff", border:"1px solid #eee", borderRadius:12, padding:16, marginBottom:12};
