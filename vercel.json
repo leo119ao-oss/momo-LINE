@@ -4,7 +4,7 @@
     "src/app/api/cron/weekly-summary/route.ts": { "maxDuration": 60 }
   },
   "crons": [
-    { "path": "/api/cron/daily-question",  "schedule": "0 22 * * *" },  // JST 07:00
-    { "path": "/api/cron/weekly-summary",  "schedule": "0 9 * * *" }    // JST 18:00（毎日）
+    { "path": "/api/cron/daily-question", "schedule": "0 22 * * *" },
+    { "path": "/api/cron/weekly-summary", "schedule": "0 9 * * *" }
   ]
 }
