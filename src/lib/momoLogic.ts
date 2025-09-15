@@ -518,8 +518,10 @@ ${contextInfo}
       temperature: 0.3,
     });
     
-    const response = completion.choices[0].message.content?.trim();
-    return response === 'null' ? null : response;
+    const raw = completion.choices?.[0]?.message?.content;
+    const response: string | null = typeof raw === 'string' ? raw.trim() : null;
+    if (!response || response.toLowerCase() === 'null') return null;
+    return response;
   } catch (error) {
     console.error('Clarification check failed:', error);
     return null;
@@ -607,7 +609,8 @@ async function finalizeIntentWithContext(userMessage: string): Promise<UserInten
       messages: [{ role: 'user', content: prompt }],
       temperature: 0,
     });
-    const result = completion.choices[0].message.content?.trim();
+    const raw = completion.choices?.[0]?.message?.content;
+    const result: string | null = typeof raw === 'string' ? raw.trim() : null;
     console.log('Context-aware intent detection result:', result);
     if (result === 'information_seeking') {
       return 'information_seeking';
@@ -992,7 +995,8 @@ ${transcript}
       messages: [{ role: 'user', content: prompt }],
       temperature: 0,
     });
-    const summary = completion.choices[0].message.content?.trim() ?? null;
+    const raw = completion.choices?.[0]?.message?.content;
+    const summary: string | null = typeof raw === 'string' ? raw.trim() : null;
     if (summary) {
       await supabaseAdmin.from('participants')
         .update({ profile_summary: summary })
@@ -1035,7 +1039,8 @@ AI: ${aiMessage}
       temperature: 0,
     });
     
-    const extractedInfo = completion.choices[0].message.content?.trim();
+    const raw = completion.choices?.[0]?.message?.content;
+    const extractedInfo: string | null = typeof raw === 'string' ? raw.trim() : null;
     if (extractedInfo) {
       // 重要な情報をデータベースに保存（将来の会話で参照可能にする）
       await supabaseAdmin.from('conversation_memories').insert({
