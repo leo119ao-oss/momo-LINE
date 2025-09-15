@@ -1,8 +1,10 @@
-"use strict";exports.id=838,exports.ids=[838],exports.modules={838:(e,t,a)=>{a.d(t,{U0:()=>d,zb:()=>R});var r=a(8316),n=a(4214);let o=`
+"use strict";exports.id=838,exports.ids=[838],exports.modules={838:(e,t,a)=>{a.d(t,{U0:()=>d,zb:()=>k});var r=a(8316),n=a(4214);let o=`
 あなたはMomo。母親の内省を支える温かい相手。
-- 口調: やさしく、ねぎらい/共感を一言そえる（〜だね/〜かもね）。
-- 断定や評価は避け、「〜かも」「〜してみる？」の提案。
-- 長文にしすぎない。段落を分けて読みやすく。
+- 口調: やさしく、ねぎらい/共感を一言そえる(〜だね/〜かもね).
+- 断定や評価は避け、「〜かも」「〜してみる？」の提案.
+- 長文にしすぎない。段落を分けて読みやすく.
+- 出力はプレーンテキスト。Markdown装飾は使わない。
+- 箇条書きは日本語の点を使う。
 `.trim();function i(e){return String(e??"").replace(/^\s*["'\u3000]+|["'\u3000]+\s*$/g,"").replace(/\s+/g," ").slice(0,140)}async function s(e,t){let a=`あなたは記事レコメンドの編集者。以下の候補が質問に「なぜ役立つか」を日本語で１文だけ返す。
 - 断定せず「〜に役立ちそう」「〜のヒントがある」等のやわらかい表現
 - 具体語を１つ入れる（年齢帯/場面/活動など）
@@ -61,6 +63,8 @@ ${p}
 3) 断定は避け、「〜かも」「〜という考え方も」で柔らかく。
 4) 箇条書きOK。最後に一言だけ励ます。
 5) コンテキスト外は無理に答えない。
+6) 出力はプレーンテキスト。Markdown装飾は使わない。
+7) 箇条書きは日本語の点を使う。
 `.trim(),_=(await f.chat.completions.create({model:"gpt-4o-mini",temperature:.5,messages:[{role:"system",content:g},{role:"user",content:`コンテキスト:
 ${u}
 
@@ -69,7 +73,7 @@ ${u}
 直前ユーザー発話: ${m}`}]})).choices[0].message.content||"すみません、うまくお答えできませんでした。",w=await d(t,c);return`${_}
 
 — 参考記事 —
-${w}`}catch(e){return console.error("RAG process failed:",e),"申し訳ありません、情報の検索中にエラーが発生しました。もう一度お試しください。"}}async function R(e,t){let a;let n=await w(e);await r.supabaseAdmin.from("chat_logs").insert({participant_id:n.id,role:"user",content:t});let i=await A(t),s=/[？\?]/.test(t)?"information_seeking":"personal_reflection"===y&&t.length<25?"personal_reflection":i;if(y=s,console.log(`[Intent] User message: "${t}" -> Raw: ${i} -> Final: ${s}`),"information_seeking"===s)a=await b(n,t);else{console.log("Handling personal reflection intent...");let{data:e}=await r.supabaseAdmin.from("chat_logs").select("role, content").eq("participant_id",n.id).order("created_at",{ascending:!1}).limit(9),i=(e||[]).reverse().map(e=>({role:"ai"===e.role?"assistant":"user",content:e.content}));i.push({role:"user",content:t});let s=n.profile_summary?`
+${w}`}catch(e){return console.error("RAG process failed:",e),"申し訳ありません、情報の検索中にエラーが発生しました。もう一度お試しください。"}}async function k(e,t){let a;let n=await w(e);await r.supabaseAdmin.from("chat_logs").insert({participant_id:n.id,role:"user",content:t});let i=await A(t),s=/[？\?]/.test(t)?"information_seeking":"personal_reflection"===y&&t.length<25?"personal_reflection":i;if(y=s,console.log(`[Intent] User message: "${t}" -> Raw: ${i} -> Final: ${s}`),"information_seeking"===s)a=await b(n,t);else{console.log("Handling personal reflection intent...");let{data:e}=await r.supabaseAdmin.from("chat_logs").select("role, content").eq("participant_id",n.id).order("created_at",{ascending:!1}).limit(9),i=(e||[]).reverse().map(e=>({role:"ai"===e.role?"assistant":"user",content:e.content}));i.push({role:"user",content:t});let s=n.profile_summary?`
 [ユーザープロフィール要約]
 ${n.profile_summary}
 `:"",l=`
@@ -79,7 +83,9 @@ ${o}${s}
 - 相づち→ねぎらい→一息つける提案を1つだけ。
 - 連続質問はしない。問いは最大1つ。
 - ユーザーの表現を少し言い換えて返す（ミラーリング）。
-`.trim();a=(await f.chat.completions.create({model:"gpt-4o-mini",messages:[{role:"system",content:l},...i]})).choices[0].message.content||"うんうん、そうなんだね。"}return await r.supabaseAdmin.from("chat_logs").insert({participant_id:n.id,role:"assistant",content:a}),k(n.id).catch(console.error),a=(a??"").replace(/```[\s\S]*?```/g,"").replace(/\*\*(.+?)\*\*/g,"$1").replace(/__(.+?)__/g,"$1").replace(/_([^_]+)_/g,"$1").replace(/^\s*[-*]\s+/gm,"・").replace(/\(β [0-9a-f]{7}\)/ig,"").replace(/[ \t]+\n/g,"\n").trim()}async function k(e){let{data:t}=await r.supabaseAdmin.from("chat_logs").select("role, content").eq("participant_id",e).order("created_at",{ascending:!0}).limit(50),a=(t??[]).map(e=>`${"user"===e.role?"U":"AI"}: ${e.content}`).join("\n"),n=`
+- 出力はプレーンテキスト。Markdown装飾は使わない。
+- 箇条書きは日本語の点を使う。
+`.trim();a=(await f.chat.completions.create({model:"gpt-4o-mini",messages:[{role:"system",content:l},...i]})).choices[0].message.content||"うんうん、そうなんだね。"}return await r.supabaseAdmin.from("chat_logs").insert({participant_id:n.id,role:"assistant",content:a}),R(n.id).catch(console.error),a=(a??"").replace(/```[\s\S]*?```/g,"").replace(/\*\*(.+?)\*\*/g,"$1").replace(/__(.+?)__/g,"$1").replace(/_([^_]+)_/g,"$1").replace(/^\s*[-*]\s+/gm,"・").replace(/\(β [0-9a-f]{7}\)/ig,"").replace(/[ \t]+\n/g,"\n").trim()}async function R(e){let{data:t}=await r.supabaseAdmin.from("chat_logs").select("role, content").eq("participant_id",e).order("created_at",{ascending:!0}).limit(50),a=(t??[]).map(e=>`${"user"===e.role?"U":"AI"}: ${e.content}`).join("\n"),n=`
 以下の会話ログから、ユーザーに関する「継続的に役立つ情報」（子どもの年齢感/好み/配慮点/口調の好み/通知の希望など）を
 事実ベースで200字以内に日本語で箇条書き要約してください。推測や機微な情報は書かないでください。
 ---
