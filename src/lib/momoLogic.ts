@@ -110,6 +110,34 @@ export async function fillTitleAuthorIfMissing(hit: any) {
 }
 
 
+export async function buildReferenceBlock(userMessage: string, picked: any[]) {
+  // lazy-fill処理（タイトル・著者情報の補完）
+  for (let i = 0; i < picked.length; i++) {
+    picked[i] = await fillTitleAuthorIfMissing(picked[i]);
+  }
+
+  // picked に対して lazy-fill を回した直後
+  console.log('RAG_META_AFTER', picked.map((p: any) => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
+
+  // 理由を生成
+  const reasonInputs = picked.map((d: any) => ({
+    url: d.source_url,
+    snippet: (d.content ?? '').slice(0, 500)
+  }));
+  const reasons = await makeOneSentenceReasons(userMessage, reasonInputs);
+
+  // ビルド情報とログ
+  const BUILD = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0,7) ?? 'local';
+  console.log('RAG_FMT', { topk: picked.length, hasReasons: !!reasons?.length, build: BUILD });
+
+  // 参考記事ブロック生成
+  const refs = picked.slice(0, 3).map((d: any, i: number) =>
+    `[${i+1}] ${reasons[i] || 'このテーマの理解に役立ちそうです。'}\n${d.source_url}`
+  ).join('\n');
+
+  return `${refs}\n\n(β ${BUILD})`;  // ★一時的
+}
+
 async function makeOneSentenceReasons(
   userMessage: string,
   items: { url: string; snippet: string }[]
@@ -395,23 +423,14 @@ async function handleInformationSeeking(participant: any, userMessage: string): 
     // picked に対して lazy-fill を回す直前
     console.log('RAG_META_BEFORE', picked.map((p: any) => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
 
-    // タイトルと著者名を遅延取得
-    for (let i = 0; i < picked.length; i++) {
-      picked[i] = await fillTitleAuthorIfMissing(picked[i]);
-    }
-
-    // picked に対して lazy-fill を回した直後
-    console.log('RAG_META_AFTER', picked.map((p: any) => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
-
     // ここまでで picked.length が0ならフォールバック
     if (picked.length === 0) {
       const wp = await wpFallbackSearch(userMessage, 3);
       if (wp.length) {
-        const reasons = await makeOneSentenceReasons(userMessage, wp);
-        const BUILD = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0,7) ?? 'local';
-        console.log('RAG_FMT', { topk: wp.length, hasReasons: !!reasons?.length, build: BUILD });
-        const list = wp.map((p, i) => `[${i+1}] ${reasons[i] || 'このテーマの理解に役立ちそうです。'}\n${p.url}`).join('\n');
-        return `手元のベクトル検索では直接ヒットがなかったけど、近いテーマの記事を見つけたよ。\n\n— 参考記事 —\n${list}\n\n(β ${BUILD})`;  // ★一時的
+        // WPデータをpicked形式に変換してbuildReferenceBlockを使用
+        const wpAsPicked = wp.map(p => ({ source_url: p.url, content: p.snippet || '' }));
+        const refs = await buildReferenceBlock(userMessage, wpAsPicked);
+        return `手元のベクトル検索では直接ヒットがなかったけど、近いテーマの記事を見つけたよ。\n\n— 参考記事 —\n${refs}`;
       }
       return 'ごめん、いま手元のデータからは関連が拾えなかった… もう少し違う聞き方も試してみて？';
     }
@@ -445,22 +464,9 @@ ${recentThread}
 
     const answer = completion.choices[0].message.content || 'すみません、うまくお答えできませんでした。';
     
-    // 理由を生成（RAGでもWPフォールバックでも共通利用）
-    const reasonInputs = picked.map((d: any) => ({
-      url: d.source_url,
-      snippet: (d.content ?? '').slice(0, 500)
-    }));
-    const reasons = await makeOneSentenceReasons(userMessage, reasonInputs);
-
-    // ビルド情報とログ
-    const BUILD = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0,7) ?? 'local';
-    console.log('RAG_FMT', { topk: picked.length, hasReasons: !!reasons?.length, build: BUILD });
-
-    // 出力テキスト（タイトルは出さない）
-    const refs = picked.slice(0, 3).map((d: any, i: number) =>
-      `[${i+1}] ${reasons[i] || 'このテーマの理解に役立ちそうです。'}\n${d.source_url}`
-    ).join('\n');
-    return `${answer}\n\n— 参考記事 —\n${refs}\n\n(β ${BUILD})`;  // ★一時的
+    // 参考記事ブロック生成
+    const refs = await buildReferenceBlock(userMessage, picked);
+    return `${answer}\n\n— 参考記事 —\n${refs}`;
 
   } catch (error) {
     console.error('RAG process failed:', error);
