@@ -404,13 +404,28 @@ function analyzeConversationFlow(logs: any[]) {
   const isDeepConversation = userMessages.length >= 2 && 
     userMessages.some(msg => msg.content.length > 20);
   
+  // 会話の文脈をより詳細に分析
+  const conversationContext = {
+    hasUnclearResponses: userMessages.some(msg => 
+      /^(はそう|そう|うん|はい|いいえ|わからない|知らない|何|なに|どう|なぜ|どうして|あの|えー|うーん|んー|そうですね|それ|これ|あれ|どれ)$/i.test(msg.content.trim())
+    ),
+    averageMessageLength: userMessages.reduce((sum, msg) => sum + msg.content.length, 0) / userMessages.length,
+    lastMessageLength: userMessages[userMessages.length - 1]?.content.length || 0,
+    conversationDepth: userMessages.length,
+    hasQuestions: userMessages.some(msg => /[？\?]/.test(msg.content)),
+    hasEmotionalWords: userMessages.some(msg => 
+      /(疲れ|イライラ|不安|心配|楽しい|嬉しい|悲しい|困る|悩み)/.test(msg.content)
+    )
+  };
+  
   return {
     themes,
     lastTheme,
     isDeepConversation,
     messageCount: userMessages.length,
     lastUserMessage: userMessages[userMessages.length - 1]?.content || '',
-    lastAiMessage: aiMessages[aiMessages.length - 1]?.content || ''
+    lastAiMessage: aiMessages[aiMessages.length - 1]?.content || '',
+    conversationContext
   };
 }
 
@@ -430,6 +445,73 @@ function extractTheme(message: string): string | null {
     }
   }
   return null;
+}
+
+/**
+ * @JSDoc
+ * 【新規追加】会話内容が不明確な場合を検出し、適切に聞き返す関数
+ * @param userMessage ユーザーメッセージ
+ * @param conversationContext 会話の文脈
+ * @returns 聞き返しが必要な場合の応答、またはnull
+ */
+async function checkForClarification(userMessage: string, conversationContext: any): Promise<string | null> {
+  // 不明確なメッセージのパターンを検出
+  const unclearPatterns = [
+    /^(はそう|そう|うん|はい|いいえ|わからない|知らない)$/i, // 単純な相づち
+    /^(何|なに|どう|なぜ|どうして)$/i, // 単語のみ
+    /^(あの|えー|うーん|んー|そうですね)$/i, // 曖昧な表現
+    /^.{1,3}$/, // 3文字以下の短いメッセージ
+    /^(それ|これ|あれ|どれ)$/i, // 指示語のみ
+  ];
+
+  // 不明確なパターンに該当するかチェック
+  const isUnclear = unclearPatterns.some(pattern => pattern.test(userMessage.trim()));
+  
+  if (!isUnclear) return null;
+
+  // 会話の文脈から推察を試みる
+  const contextInfo = conversationContext.isDeepConversation ? 
+    `前回のテーマ: ${conversationContext.lastTheme || '新しい話題'}\n前回のAI応答: ${conversationContext.lastAiMessage}` : 
+    '新しい会話の開始';
+
+  const prompt = `
+以下の状況で、ユーザーが不明確な返答をした場合の適切な聞き返しを考えてください。
+
+【会話の文脈】
+${contextInfo}
+
+【ユーザーの返答】
+"${userMessage}"
+
+【聞き返しのルール】
+1) 推察を交えつつ、具体的に何について聞きたいかを明確にする
+2) 選択肢を提示するか、具体的な質問をする
+3) 優しく、プレッシャーを感じさせない
+4) 会話の流れを自然に保つ
+5) 1-2文で簡潔に
+
+【例】
+- 「はそう」→「そうなんだね。具体的には、どんなことが気になってる？」
+- 「わからない」→「大丈夫だよ。何について話したいか、少し教えてもらえる？」
+- 「それ」→「○○のことかな？もう少し詳しく教えてもらえる？」
+
+適切な聞き返しの文を1つだけ返してください。聞き返しが不要な場合は「null」と返してください。
+  `.trim();
+
+  try {
+    const openai = new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY! });
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.3,
+    });
+    
+    const response = completion.choices[0].message.content?.trim();
+    return response === 'null' ? null : response;
+  } catch (error) {
+    console.error('Clarification check failed:', error);
+    return null;
+  }
 }
 
 /**
@@ -594,6 +676,12 @@ async function handleInformationSeeking(participant: any, userMessage: string): 
 
     const { lastUser, thread: recentThread, conversationFlow } = await getConversationContext(participant.id);
     
+    // 不明確なメッセージの場合は聞き返しを優先
+    const clarificationResponse = await checkForClarification(userMessage, conversationFlow);
+    if (clarificationResponse) {
+      return clarificationResponse;
+    }
+    
     // 会話の継続性を考慮したシステムプロンプト
     const contextInfo = conversationFlow.isDeepConversation ? 
       `\n[会話の流れ]\n前回のテーマ: ${conversationFlow.lastTheme || '新しい話題'}\n会話の深さ: ${conversationFlow.messageCount}回のやり取り` : '';
@@ -616,6 +704,7 @@ ${recentThread}${contextInfo}
 9) 箇条書きは日本語の点を使う。
 10) 会話が続いている場合は、自然なフォローアップ質問を1つ含める。
 11) 参考記事は最後に「参考になりそうな記事も見つけたよ」として控えめに提示。
+12) 内容が不明確な場合は、推察を交えつつ具体的に聞き返す。
 `.trim();
 
     const completion = await openai.chat.completions.create({
@@ -794,6 +883,12 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
     // 会話の流れを分析
     const { conversationFlow } = await getConversationContext(participant.id);
     
+    // 不明確なメッセージの場合は聞き返しを優先
+    const clarificationResponse = await checkForClarification(text, conversationFlow);
+    if (clarificationResponse) {
+      return clarificationResponse;
+    }
+    
     const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
     
     // 会話の継続性を考慮したシステムプロンプト
@@ -810,6 +905,7 @@ ${MOMO_VOICE}${profile}${conversationContext}
 - ユーザーの表現を少し言い換えて返す（ミラーリング）。
 - 会話が続いている場合は、前回の話題に関連した自然なフォローアップを心がける。
 - ユーザーが具体的な解決策や情報を求めている場合は、「詳しい情報が必要だったら教えてね」と提案する。
+- 内容が不明確な場合は、推察を交えつつ具体的に聞き返す。
 - 出力はプレーンテキスト。Markdown装飾は使わない。
 - 箇条書きは日本語の点を使う。
 `.trim();
