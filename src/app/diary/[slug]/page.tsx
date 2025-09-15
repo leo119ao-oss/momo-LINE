@@ -1,28 +1,50 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { notFound } from "next/navigation";
 import Image from "next/image";
 import { createClient } from '@supabase/supabase-js';
+import { ensureLiff } from "@/lib/liffClient";
 
 export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
-export async function generateMetadata({ params }: { params: { slug: string } }) {
-  const title = 'Momo 絵日記';
-  return { title, description: '今日の小さな一枚' };
-}
+export default function DiaryPage({ params }: { params: { slug: string } }) {
+  const [entry, setEntry] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
 
-export default async function DiaryPage({ params }: { params: { slug: string } }) {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-  );
+  useEffect(() => {
+    (async () => {
+      await ensureLiff(process.env.NEXT_PUBLIC_LIFF_DIARY_ID!);
+      
+      const supabase = createClient(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+      );
 
-  const { data: entry } = await supabase
-    .from('media_entries')
-    .select('*')
-    .eq('page_slug', params.slug)
-    .maybeSingle();
+      const { data } = await supabase
+        .from('media_entries')
+        .select('*')
+        .eq('page_slug', params.slug)
+        .maybeSingle();
 
-  if (!entry) notFound();
+      if (!data) {
+        notFound();
+      }
+      
+      setEntry(data);
+      setLoading(false);
+    })();
+  }, [params.slug]);
+
+  if (loading) {
+    return <div className="p-4 text-sm">読み込み中...</div>;
+  }
+
+  if (!entry) {
+    notFound();
+  }
+
   const e = entry;
 
   return (

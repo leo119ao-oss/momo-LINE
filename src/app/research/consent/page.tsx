@@ -1,12 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { ensureLiff, getLineUserId } from "@/lib/liffClient";
 
 export default function ConsentPage() {
+  const [uid, setUid] = useState<string>();
   const [consent, setConsent] = useState(false);
   const [displayName, setDisplayName] = useState("");
-  const [contact, setContact] = useState("");
   const [cohort, setCohort] = useState("community");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [participant, setParticipant] = useState<{id: string, condition: string} | null>(null);
@@ -17,9 +18,16 @@ export default function ConsentPage() {
   });
   const router = useRouter();
 
+  useEffect(() => { 
+    (async () => {
+      await ensureLiff(process.env.NEXT_PUBLIC_LIFF_CONSENT_ID!);
+      setUid(await getLineUserId());
+    })(); 
+  }, []);
+
   const handleConsent = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!consent || !displayName || !contact) return;
+    if (!consent || !displayName || !uid) return;
 
     setIsSubmitting(true);
     try {
@@ -28,7 +36,7 @@ export default function ConsentPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           display_name: displayName,
-          contact,
+          contact: uid, // LINE userIdを保存
           cohort
         })
       });
@@ -74,6 +82,10 @@ export default function ConsentPage() {
       setIsSubmitting(false);
     }
   };
+
+  if (!uid) {
+    return <div className="p-4 text-sm">LINE連携中…</div>;
+  }
 
   if (participant) {
     return (
@@ -173,14 +185,10 @@ export default function ConsentPage() {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-2">連絡先（メール）</label>
-          <input
-            type="email"
-            value={contact}
-            onChange={(e) => setContact(e.target.value)}
-            required
-            className="w-full p-2 border border-gray-300 rounded-md"
-          />
+          <label className="block text-sm font-medium mb-2">LINE連携</label>
+          <div className="p-2 bg-green-50 border border-green-200 rounded-md text-sm text-green-700">
+            {uid ? "✅ LINE連携完了" : "LINE連携中..."}
+          </div>
         </div>
 
         <div>
@@ -211,7 +219,7 @@ export default function ConsentPage() {
 
         <button
           type="submit"
-          disabled={isSubmitting || !consent || !displayName || !contact}
+          disabled={isSubmitting || !consent || !displayName || !uid}
           className="w-full bg-blue-500 text-white py-2 px-4 rounded-md hover:bg-blue-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
         >
           {isSubmitting ? "送信中..." : "同意して参加"}
