@@ -71,6 +71,23 @@ async function generateOneReason(
   }
 }
 
+function cleanForLine(raw: string): string {
+  return (raw ?? '')
+    // コードブロック除去
+    .replace(/```[\s\S]*?```/g, '')
+    // 強調(**text** / __text__ / _text_) を素の文に
+    .replace(/\*\*(.+?)\*\*/g, '$1')
+    .replace(/__(.+?)__/g, '$1')
+    .replace(/_([^_]+)_/g, '$1')
+    // 箇条書きの - / * を「・」へ（行頭のみ）
+    .replace(/^\s*[-*]\s+/gm, '・')
+    // デバッグ印 (β xxxxxxx) を念のため除去
+    .replace(/\(β [0-9a-f]{7}\)/ig, '')
+    // 余分な空白を整理
+    .replace(/[ \t]+\n/g, '\n')
+    .trim();
+}
+
 function getSlugFromUrl(url: string): string | null {
   try {
     const u = new URL(url);
@@ -615,6 +632,9 @@ ${MOMO_VOICE}${profile}
 
   // プロフィール要約を非同期で更新（ベストエフォート）
   updateProfileSummary(participant.id).catch(console.error);
+
+  // 生成済みの aiMessage を LINE 向けに整形
+  aiMessage = cleanForLine(aiMessage);
 
   return aiMessage;
 }
