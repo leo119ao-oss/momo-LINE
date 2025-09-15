@@ -1,14 +1,10 @@
 {
   "functions": {
-    "src/app/api/cron/daily-question/route.ts": { "maxDuration": 30 },
-    "src/app/api/cron/weekly-summary/route.ts": { "maxDuration": 30 },
-    "src/app/api/cron/morning-reco/route.ts": { "maxDuration": 30 },
-    "src/app/api/cron/evening-journal/route.ts": { "maxDuration": 30 }
+    "src/app/api/cron/daily-question/route.ts": { "maxDuration": 60 },
+    "src/app/api/cron/weekly-summary/route.ts": { "maxDuration": 60 }
   },
   "crons": [
-    { "path": "/api/cron/daily-question", "schedule": "0 0 * * *" },
-    { "path": "/api/cron/weekly-summary", "schedule": "0 9 * * 0" },
-    { "path": "/api/cron/morning-reco", "schedule": "0 22 * * *" },
-    { "path": "/api/cron/evening-journal", "schedule": "0 9 * * *" }
+    { "path": "/api/cron/daily-question",  "schedule": "0 22 * * *" },  // JST 07:00
+    { "path": "/api/cron/weekly-summary",  "schedule": "0 9 * * *" }    // JST 18:00（毎日）
   ]
 }

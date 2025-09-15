@@ -1,59 +1,48 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { lineClient } from '@/lib/lineClient';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { lineClient } from '@/lib/lineClient';
 
-function verifyCronSecret(req: NextRequest) {
-  const auth = req.headers.get('authorization');
-  const secret = process.env.CRON_SECRET;
-  return !!secret && auth === `Bearer ${secret}`;
+export const dynamic = 'force-dynamic';
+export const runtime = 'nodejs';
+
+function isSundayJST(d = new Date()) {
+  const jst = new Date(d.toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+  return jst.getDay() === 0; // 0=Sun
 }
 
-export const runtime = 'nodejs';
-export const dynamic = 'force-dynamic';
-
 export async function GET(request: NextRequest) {
-  if (!verifyCronSecret(request)) {
+  if (request.headers.get('authorization') !== `Bearer ${process.env.CRON_SECRET}`) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
+  const prompts = [
+    '今日はどんな一日だった？心に残った「小さな出来事」を一つだけ思い出してみて？',
+    '今日はどんな感情が一番強かった？その瞬間を一言で言うと？',
+    '朝のおすすめ、少しでも試せた？やってみてどうだった？'
+  ];
 
-  const { data: users, error: usersErr } = await supabaseAdmin
-    .from('participants')
-    .select('id, line_user_id');
+  const { data: users } = await supabaseAdmin.from('users')
+    .select('line_user_id, participants!inner(id)');
 
-  if (usersErr) return NextResponse.json({ error: usersErr.message }, { status: 500 });
-  if (!users?.length) return NextResponse.json({ message: 'No participants' });
-
-  const since = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
-  const results: any[] = [];
-
-  for (const u of users) {
-    const { data: logs } = await supabaseAdmin
-      .from('chat_logs')
-      .select('role, content, created_at')
-      .eq('participant_id', u.id)
-      .gte('created_at', since)
-      .order('created_at', { ascending: true });
-
-    const summary = (logs?.length ?? 0) > 0
-      ? `今週のふりかえり（β）
-- よく出た気持ち: …
-- 印象的な出来事: …
-- 来週ためしたいこと: …
-※自動生成の簡易版です。`
-      : '今週の記録は見当たりませんでした。来週も無理なく少しずつ✍️';
-
+  let sent = 0;
+  for (const u of users || []) {
     try {
-      await lineClient.pushMessage(u.line_user_id, { type: 'text', text: summary });
-      results.push({ userId: u.line_user_id, status: 'success' });
-    } catch (e: any) {
-      await supabaseAdmin.from('line_push_errors').insert({
-        line_user_id: u.line_user_id,
-        payload: { text: summary },
-        error: e?.message ?? String(e)
+      const q = prompts[Math.floor(Math.random() * prompts.length)];
+      await lineClient.pushMessage(u.line_user_id, {
+        type: 'text',
+        text: `こんばんは。\n${q}\n（一言でもOK。あとで絵日記にできるよ）`
       });
-      results.push({ userId: u.line_user_id, status: 'error', error: e?.message ?? String(e) });
+
+      // 日曜JSTだけ週次振り返りも追加送信
+      if (isSundayJST()) {
+        await lineClient.pushMessage(u.line_user_id, {
+          type: 'text',
+          text: '今週の振り返りもしようか。心に残った出来事を3つ、短くメモしてみて？'
+        });
+      }
+      sent++;
+    } catch (e) {
+      console.error('evening-journal error', e);
     }
   }
-
-  return NextResponse.json({ sent: results.filter(r => r.status === 'success').length, errors: results.filter(r => r.status === 'error') });
+  return NextResponse.json({ sent });
 }
