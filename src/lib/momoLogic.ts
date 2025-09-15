@@ -216,7 +216,7 @@ export async function buildReferenceBlock(userMessage: string, picked: any[]) {
     `[${i+1}] ${reasons[i] || 'このテーマの理解に役立ちそうです。'}\n${d.source_url}`
   ).join('\n');
 
-  return `${refs}\n\n(β ${BUILD})`;  // ★一時的
+  return refs;
 }
 
 // まずはバッチJSONで作り、壊れていたら１件ずつ生成にフォールバック
