@@ -376,15 +376,60 @@ function chooseMode(intent: UserIntent, text: string): UserIntent {
 async function getConversationContext(participantId: number) {
   const { data: logs } = await supabaseAdmin
     .from('chat_logs')
-    .select('role, content')
+    .select('role, content, created_at')
     .eq('participant_id', participantId)
     .order('created_at', { ascending: false })
-    .limit(8);
+    .limit(12); // より多くの会話履歴を取得
 
   const recent = (logs ?? []).reverse();
   const lastUser = [...recent].reverse().find(l => l.role === 'user')?.content ?? '';
   const thread = recent.map(l => `${l.role === 'user' ? 'U' : 'AI'}: ${l.content}`).join('\n');
-  return { lastUser, thread };
+  
+  // 会話の流れを分析
+  const conversationFlow = analyzeConversationFlow(recent);
+  
+  return { lastUser, thread, conversationFlow };
+}
+
+// 会話の流れを分析する関数
+function analyzeConversationFlow(logs: any[]) {
+  const userMessages = logs.filter(l => l.role === 'user').slice(-3); // 直近3つのユーザーメッセージ
+  const aiMessages = logs.filter(l => l.role === 'assistant').slice(-3); // 直近3つのAIメッセージ
+  
+  // 会話のテーマを抽出
+  const themes = userMessages.map(msg => extractTheme(msg.content)).filter(Boolean);
+  const lastTheme = themes[themes.length - 1];
+  
+  // 会話の深さを判定
+  const isDeepConversation = userMessages.length >= 2 && 
+    userMessages.some(msg => msg.content.length > 20);
+  
+  return {
+    themes,
+    lastTheme,
+    isDeepConversation,
+    messageCount: userMessages.length,
+    lastUserMessage: userMessages[userMessages.length - 1]?.content || '',
+    lastAiMessage: aiMessages[aiMessages.length - 1]?.content || ''
+  };
+}
+
+// メッセージからテーマを抽出する関数
+function extractTheme(message: string): string | null {
+  const themeKeywords = [
+    '子育て', '育児', '子ども', '赤ちゃん', '幼児',
+    '食事', '睡眠', '遊び', '勉強', '習い事',
+    '疲れ', 'イライラ', '不安', '心配', '楽しい',
+    '友達', '家族', '夫', '妻', '親',
+    '病気', '怪我', '安全', '健康'
+  ];
+  
+  for (const keyword of themeKeywords) {
+    if (message.includes(keyword)) {
+      return keyword;
+    }
+  }
+  return null;
 }
 
 /**
@@ -537,21 +582,28 @@ async function handleInformationSeeking(participant: any, userMessage: string): 
     const contextText = picked.map((d: any) => d.content).join('\n---\n');
     const sourceUrls = Array.from(new Set(picked.map((d: any) => d.source_url)));
 
-    const { lastUser, thread: recentThread } = await getConversationContext(participant.id);
+    const { lastUser, thread: recentThread, conversationFlow } = await getConversationContext(participant.id);
+    
+    // 会話の継続性を考慮したシステムプロンプト
+    const contextInfo = conversationFlow.isDeepConversation ? 
+      `\n[会話の流れ]\n前回のテーマ: ${conversationFlow.lastTheme || '新しい話題'}\n会話の深さ: ${conversationFlow.messageCount}回のやり取り` : '';
+    
     const systemPrompt = `
 ${MOMO_VOICE}
 
 [最近の会話ログ]
-${recentThread}
+${recentThread}${contextInfo}
 
 [ルール]
-1) 冒頭に1〜2文だけ共感を添える（過度な深掘りはしない）。
-2) 次に、提供されたコンテキストの範囲で質問に答える。
-3) 断定は避け、「〜かも」「〜という考え方も」で柔らかく。
-4) 箇条書きOK。最後に一言だけ励ます。
-5) コンテキスト外は無理に答えない。
-6) 出力はプレーンテキスト。Markdown装飾は使わない。
-7) 箇条書きは日本語の点を使う。
+1) 会話の流れを意識し、前回の内容に自然に繋げる。
+2) 冒頭に1〜2文だけ共感を添える（過度な深掘りはしない）。
+3) 次に、提供されたコンテキストの範囲で質問に答える。
+4) 断定は避け、「〜かも」「〜という考え方も」で柔らかく。
+5) 箇条書きOK。最後に一言だけ励ます。
+6) コンテキスト外は無理に答えない。
+7) 出力はプレーンテキスト。Markdown装飾は使わない。
+8) 箇条書きは日本語の点を使う。
+9) 会話が続いている場合は、自然なフォローアップ質問を1つ含める。
 `.trim();
 
     const completion = await openai.chat.completions.create({
@@ -674,7 +726,7 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
       .select('role, content')
       .eq('participant_id', participant.id)
       .order('created_at', { ascending: false })
-      .limit(9); // 最新のユーザーメッセージを除いて9件取得
+      .limit(12); // より多くの会話履歴を取得
     
     const messages = (history || [])
       .reverse()
@@ -686,14 +738,24 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
     // 現在のユーザーメッセージを追加
     messages.push({ role: 'user', content: text });
 
-      const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
-      const reflectionSystem = `
-${MOMO_VOICE}${profile}
+    // 会話の流れを分析
+    const { conversationFlow } = await getConversationContext(participant.id);
+    
+    const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
+    
+    // 会話の継続性を考慮したシステムプロンプト
+    const conversationContext = conversationFlow.isDeepConversation ? 
+      `\n[会話の流れ]\n前回のテーマ: ${conversationFlow.lastTheme || '新しい話題'}\n会話の深さ: ${conversationFlow.messageCount}回のやり取り\n前回のAI応答: ${conversationFlow.lastAiMessage}` : '';
+    
+    const reflectionSystem = `
+${MOMO_VOICE}${profile}${conversationContext}
 
 [ルール]
+- 会話の流れを意識し、前回の内容に自然に繋げる。
 - 相づち→ねぎらい→一息つける提案を1つだけ。
 - 連続質問はしない。問いは最大1つ。
 - ユーザーの表現を少し言い換えて返す（ミラーリング）。
+- 会話が続いている場合は、前回の話題に関連した自然なフォローアップを心がける。
 - 出力はプレーンテキスト。Markdown装飾は使わない。
 - 箇条書きは日本語の点を使う。
 `.trim();
@@ -714,6 +776,9 @@ ${MOMO_VOICE}${profile}
 
   // プロフィール要約を非同期で更新（ベストエフォート）
   updateProfileSummary(participant.id).catch(console.error);
+  
+  // 重要な会話情報を記憶に保存（ベストエフォート）
+  saveImportantConversationInfo(participant.id, text, aiMessage).catch(console.error);
 
   // 生成済みの aiMessage を LINE 向けに整形
   aiMessage = cleanForLine(aiMessage);
@@ -760,5 +825,53 @@ ${transcript}
     }
   } catch (e) { 
     console.error('updateProfileSummary failed', e); 
+  }
+}
+
+/**
+ * @JSDoc
+ * 【新規追加】重要な会話情報を記憶に保存する関数（非同期実行）
+ * @param participantId 参加者ID
+ * @param userMessage ユーザーメッセージ
+ * @param aiMessage AI応答
+ */
+async function saveImportantConversationInfo(participantId: number, userMessage: string, aiMessage: string) {
+  // 重要な情報を含むメッセージかどうかを判定
+  const isImportant = userMessage.length > 30 || 
+    /(子どもの年齢|名前|好き|嫌い|困って|悩み|心配|不安|楽しい|嬉しい)/.test(userMessage);
+  
+  if (!isImportant) return;
+  
+  try {
+    // 重要な情報を抽出して保存
+    const prompt = `
+以下の会話から、ユーザーに関する「重要な情報」（子どもの年齢、名前、好み、困りごと、家族構成など）を
+簡潔に抽出してください。JSON形式で返してください。
+例: {"child_age": "3歳", "concerns": ["食事", "睡眠"], "family": "夫婦と子ども1人"}
+
+ユーザー: ${userMessage}
+AI: ${aiMessage}
+    `.trim();
+    
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0,
+    });
+    
+    const extractedInfo = completion.choices[0].message.content?.trim();
+    if (extractedInfo) {
+      // 重要な情報をデータベースに保存（将来の会話で参照可能にする）
+      await supabaseAdmin.from('conversation_memories').insert({
+        participant_id: participantId,
+        user_message: userMessage,
+        ai_message: aiMessage,
+        extracted_info: extractedInfo,
+        created_at: new Date().toISOString()
+      });
+      console.log(`[Memory] Saved important conversation info for participant ${participantId}`);
+    }
+  } catch (e) {
+    console.error('saveImportantConversationInfo failed', e);
   }
 }
