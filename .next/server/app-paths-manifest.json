@@ -1,17 +1,23 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
+  "/admin/dashboard/page": "app/admin/dashboard/page.js",
   "/api/consent/route": "app/api/consent/route.js",
   "/api/cron/evening-journal/route": "app/api/cron/evening-journal/route.js",
   "/api/cron/morning-reco/route": "app/api/cron/morning-reco/route.js",
   "/api/cta/click/route": "app/api/cta/click/route.js",
+  "/api/daily/route": "app/api/daily/route.js",
+  "/api/family/feedback/route": "app/api/family/feedback/route.js",
   "/api/search/google/route": "app/api/search/google/route.js",
   "/api/survey/[phase]/route": "app/api/survey/[phase]/route.js",
   "/api/waitlist/route": "app/api/waitlist/route.js",
+  "/api/weekly/route": "app/api/weekly/route.js",
   "/register/page": "app/register/page.js",
-  "/api/family/feedback/route": "app/api/family/feedback/route.js",
+  "/research/consent/page": "app/research/consent/page.js",
+  "/weekly/page": "app/weekly/page.js",
   "/api/cron/daily-question/route": "app/api/cron/daily-question/route.js",
   "/api/cron/weekly-summary/route": "app/api/cron/weekly-summary/route.js",
   "/api/debug/rag/route": "app/api/debug/rag/route.js",
+  "/api/line/webhook/route": "app/api/line/webhook/route.js",
   "/diary/[slug]/page": "app/diary/[slug]/page.js",
-  "/api/line/webhook/route": "app/api/line/webhook/route.js"
+  "/api/health/route": "app/api/health/route.js"
 }

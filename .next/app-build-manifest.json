@@ -1,29 +1,50 @@
 {
   "pages": {
     "/_not-found/page": [
-      "static/chunks/webpack-357bf293babb87c5.js",
+      "static/chunks/webpack-57586abe07dbe25a.js",
       "static/chunks/fd9d1056-9f91b5e418130764.js",
       "static/chunks/117-c3f9c29e916a95c9.js",
       "static/chunks/main-app-c7530e6fe1b8e6ee.js",
       "static/chunks/app/_not-found/page-4b9eb8aab41bf6df.js"
     ],
     "/layout": [
-      "static/chunks/webpack-357bf293babb87c5.js",
+      "static/chunks/webpack-57586abe07dbe25a.js",
       "static/chunks/fd9d1056-9f91b5e418130764.js",
       "static/chunks/117-c3f9c29e916a95c9.js",
       "static/chunks/main-app-c7530e6fe1b8e6ee.js",
       "static/css/1c9d5178746e01e7.css",
       "static/chunks/app/layout-c1a3adedbcbc4eed.js"
     ],
+    "/admin/dashboard/page": [
+      "static/chunks/webpack-57586abe07dbe25a.js",
+      "static/chunks/fd9d1056-9f91b5e418130764.js",
+      "static/chunks/117-c3f9c29e916a95c9.js",
+      "static/chunks/main-app-c7530e6fe1b8e6ee.js",
+      "static/chunks/app/admin/dashboard/page-10e1c0ee9f60d352.js"
+    ],
     "/register/page": [
-      "static/chunks/webpack-357bf293babb87c5.js",
+      "static/chunks/webpack-57586abe07dbe25a.js",
       "static/chunks/fd9d1056-9f91b5e418130764.js",
       "static/chunks/117-c3f9c29e916a95c9.js",
       "static/chunks/main-app-c7530e6fe1b8e6ee.js",
       "static/chunks/app/register/page-b95301334db09df4.js"
     ],
+    "/research/consent/page": [
+      "static/chunks/webpack-57586abe07dbe25a.js",
+      "static/chunks/fd9d1056-9f91b5e418130764.js",
+      "static/chunks/117-c3f9c29e916a95c9.js",
+      "static/chunks/main-app-c7530e6fe1b8e6ee.js",
+      "static/chunks/app/research/consent/page-f5b6f11a2973a368.js"
+    ],
+    "/weekly/page": [
+      "static/chunks/webpack-57586abe07dbe25a.js",
+      "static/chunks/fd9d1056-9f91b5e418130764.js",
+      "static/chunks/117-c3f9c29e916a95c9.js",
+      "static/chunks/main-app-c7530e6fe1b8e6ee.js",
+      "static/chunks/app/weekly/page-41397bdcf82f5648.js"
+    ],
     "/diary/[slug]/page": [
-      "static/chunks/webpack-357bf293babb87c5.js",
+      "static/chunks/webpack-57586abe07dbe25a.js",
       "static/chunks/fd9d1056-9f91b5e418130764.js",
       "static/chunks/117-c3f9c29e916a95c9.js",
       "static/chunks/main-app-c7530e6fe1b8e6ee.js",

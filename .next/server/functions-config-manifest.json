@@ -1,1 +1,1 @@
-{"version":1,"functions":{"/api/cron/weekly-summary":{},"/api/line/webhook":{},"/api/cron/daily-question":{},"/api/debug/rag":{},"/diary/[slug]":{}}}
+{"version":1,"functions":{"/api/cron/daily-question":{},"/api/cron/weekly-summary":{},"/api/debug/rag":{},"/api/health":{},"/api/line/webhook":{},"/diary/[slug]":{}}}
