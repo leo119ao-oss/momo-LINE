@@ -1,34 +1,32 @@
 {
   "version": 3,
-  "middleware": {},
-  "functions": {
-    "/api/health/route": {
+  "middleware": {
+    "/": {
       "files": [
-        "server/middleware-build-manifest.js",
-        "server/middleware-react-loadable-manifest.js",
-        "server/next-font-manifest.js",
-        "server/interception-route-rewrite-manifest.js",
         "server/edge-runtime-webpack.js",
-        "server/app/api/health/route.js"
+        "server/middleware.js"
       ],
-      "name": "app/api/health/route",
-      "page": "/api/health/route",
+      "name": "middleware",
+      "page": "/",
       "matchers": [
         {
-          "regexp": "^/api/health$",
-          "originalSource": "/api/health"
+          "regexp": "^/.*$",
+          "originalSource": "/:path*"
         }
       ],
       "wasm": [],
       "assets": [],
       "env": {
-        "__NEXT_BUILD_ID": "btu_zU08UTys6AG-PiFkz",
-        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "O8kaCT+IuHfroZR7vLBCXEaes2SUJx/0vgeYr3hCAGk=",
-        "__NEXT_PREVIEW_MODE_ID": "352e9400b649ac8aef4b96b895564ca9",
-        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "c6b0902b8895b8a359155c46c5c03076d44b98cf4b9ccf95477c7ed981185064",
-        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "520ae779fda3a9a4df8b06ce26b78ac419d25eaca0e50bcbd275a2ba4d68cd3d"
+        "__NEXT_BUILD_ID": "PJj5mlR7f2RrYTSESS-XL",
+        "NEXT_SERVER_ACTIONS_ENCRYPTION_KEY": "k/BujaSgJqBq+r2N1Vv1xsqFN5Qf095ANKsONI5CAyc=",
+        "__NEXT_PREVIEW_MODE_ID": "ff40843979bc0b413b6fa63f34977895",
+        "__NEXT_PREVIEW_MODE_ENCRYPTION_KEY": "914daca68a89a1993f5e9b20d5aecba732c5ec7e8cdf236dd3b60b2782eab30c",
+        "__NEXT_PREVIEW_MODE_SIGNING_KEY": "b1e821afe69ed5ffd61f10f21b7d2b05b8aa446187bf4630466e687467efda53"
       }
     }
   },
-  "sortedMiddleware": []
+  "functions": {},
+  "sortedMiddleware": [
+    "/"
+  ]
 }

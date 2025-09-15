@@ -1,8 +1,8 @@
-// File: C:\Users\Owner\Desktop\momo-LINE\src\app\research\consent\page.tsx
-import * as entry from '../../../../../src/app/research/consent/page.js'
+// File: C:\Users\Owner\Desktop\momo-LINE\app\research\consent\page.tsx
+import * as entry from '../../../../../app/research/consent/page.js'
 import type { ResolvingMetadata, ResolvingViewport } from 'next/dist/lib/metadata/types/metadata-interface.js'
 
-type TEntry = typeof import('../../../../../src/app/research/consent/page.js')
+type TEntry = typeof import('../../../../../app/research/consent/page.js')
 
 // Check that the entry is a valid entry
 checkFields<Diff<{
