@@ -142,11 +142,52 @@ export async function POST(req: NextRequest) {
 
           const replyMessage = await handleTextMessage(userId, userMessage);
 
-          // replyは一度きり。失敗時はpushしないでログのみ（ダブり防止）
-          await lineClient.replyMessage(event.replyToken, {
-            type: 'text',
-            text: replyMessage,
-          });
+          // キーワードでクイックリプライを追加
+          const keywords = ['参加', '日次', '週次', 'ヘルプ', 'メニュー'];
+          const hasKeyword = keywords.some(keyword => userMessage.includes(keyword));
+          
+          if (hasKeyword) {
+            const qr = {
+              type: "text" as const,
+              text: replyMessage + "\n\nメニューから選んでください",
+              quickReply: { 
+                items: [
+                  { 
+                    type: "action" as const, 
+                    action: { 
+                      type: "uri" as const, 
+                      label: "研究に参加", 
+                      uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_CONSENT_ID}` 
+                    } 
+                  },
+                  { 
+                    type: "action" as const, 
+                    action: { 
+                      type: "uri" as const, 
+                      label: "今日の1分", 
+                      uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_DAILY_ID}` 
+                    } 
+                  },
+                  { 
+                    type: "action" as const, 
+                    action: { 
+                      type: "uri" as const, 
+                      label: "週次まとめ", 
+                      uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_WEEKLY_ID}` 
+                    } 
+                  },
+                ] 
+              }
+            };
+            
+            await lineClient.replyMessage(event.replyToken, qr);
+          } else {
+            // replyは一度きり。失敗時はpushしないでログのみ（ダブり防止）
+            await lineClient.replyMessage(event.replyToken, {
+              type: 'text',
+              text: replyMessage,
+            });
+          }
 
           console.log(`Successfully replied to user ${userId}`);
         } catch (messageError) {

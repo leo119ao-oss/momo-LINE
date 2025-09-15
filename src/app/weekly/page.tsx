@@ -2,8 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { ensureLiff, getLineUserId } from "@/lib/liffClient";
 
 export default function WeeklyPage() {
+  const [uid, setUid] = useState<string>();
   const [participant, setParticipant] = useState<{id: string, condition: string} | null>(null);
   const [weeklyData, setWeeklyData] = useState({
     did: "",
@@ -14,6 +16,13 @@ export default function WeeklyPage() {
   const [cardUrl, setCardUrl] = useState("");
   const [showCTAs, setShowCTAs] = useState(false);
   const router = useRouter();
+
+  useEffect(() => { 
+    (async () => {
+      await ensureLiff(process.env.NEXT_PUBLIC_LIFF_WEEKLY_ID!);
+      setUid(await getLineUserId());
+    })(); 
+  }, []);
 
   useEffect(() => {
     const stored = localStorage.getItem("participant");
@@ -26,7 +35,7 @@ export default function WeeklyPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!participant) return;
+    if (!participant || !uid) return;
 
     setIsSubmitting(true);
     try {
@@ -37,7 +46,7 @@ export default function WeeklyPage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          user_id: participant.id,
+          user_id: uid, // LINE userIdを使用
           week_start: weekStart.toISOString().split('T')[0],
           ...weeklyData,
           shared_card: true,
@@ -90,6 +99,10 @@ export default function WeeklyPage() {
       console.error("CTA処理エラー:", error);
     }
   };
+
+  if (!uid) {
+    return <div className="p-4 text-sm">LINE連携中…</div>;
+  }
 
   if (!participant) {
     return <div>読み込み中...</div>;
