@@ -434,58 +434,68 @@ function extractTheme(message: string): string | null {
 
 /**
  * @JSDoc
- * 【新規追加】ユーザーのメッセージの意図を判別する「受付係」AI。
+ * 【調整】ユーザーのメッセージの意図を判別する「受付係」AI。
+ * RAG検索は明示的な情報要求の場合のみ実行するように調整。
  * @param userMessage ユーザーからのテキストメッセージ
  * @returns 'information_seeking' (情報探索) または 'personal_reflection' (内省的なつぶやき)
  */
 async function detectUserIntent(userMessage: string): Promise<UserIntent> {
-  // NotebookLMレベルの自由度: より多くの質問パターンをキャッチ
-  const questionKeywords = [
-    'どう', '教えて', '方法', '何', 'どこ', 'いつ', 'おすすめ', '使い方', '遊び', 'コツ', 
-    '困る', '悩み', '解決', 'したい', 'やり方', '知りたい', 'について', 'なぜ', 'どうして',
-    'できる', 'できない', 'ある', 'ない', 'あるの', 'ないの', 'する', 'しない', 'やる', 'やらない',
-    'いい', '悪い', '良い', '悪い', 'おすすめ', '避ける', '注意', '気をつける', '心配', '不安',
-    '楽しい', '面白い', 'つまらない', '大変', '簡単', '難しい', '便利', '不便', '効果的', '無駄',
-    '時間', 'お金', '場所', '人', '物', 'こと', 'もの', 'とき', '場合', '状況', '問題', '課題',
-    '子育て', '育児', '子ども', '赤ちゃん', '幼児', '小学生', '中学生', '高校生', '学校', '幼稚園',
-    '食事', '睡眠', '遊び', '勉強', '習い事', '運動', '健康', '病気', '怪我', '安全', '危険',
-    '友達', '家族', '夫', '妻', '親', '祖父母', '兄弟', '姉妹', 'ママ', 'パパ', 'お母さん', 'お父さん'
+  // 明示的な情報要求のキーワード（より厳格に）
+  const explicitInfoKeywords = [
+    '教えて', '方法', 'やり方', '知りたい', 'おすすめ', 'コツ', '解決', '対処法', '選び方',
+    'どうすれば', 'どうしたら', '何を', 'どこで', 'いつ', 'なぜ', 'どうして', '調べて', '検索して'
   ];
   
-  const quickAskRegex = new RegExp(`[？\?]|(${questionKeywords.join('|')})`);
-  if (quickAskRegex.test(userMessage)) return 'information_seeking';
+  // 明示的な質問記号または情報要求キーワードがある場合のみ情報探索
+  const explicitInfoRegex = new RegExp(`[？\?]|(${explicitInfoKeywords.join('|')})`);
+  if (explicitInfoRegex.test(userMessage)) {
+    // さらに、会話の文脈を考慮して最終判断
+    return await finalizeIntentWithContext(userMessage);
+  }
   
+  // デフォルトは内省的なつぶやきとして扱う
+  return 'personal_reflection';
+}
+
+/**
+ * @JSDoc
+ * 【新規追加】文脈を考慮した最終的な意図判定
+ * @param userMessage ユーザーメッセージ
+ * @returns 最終的な意図
+ */
+async function finalizeIntentWithContext(userMessage: string): Promise<UserIntent> {
   const prompt = `
-    以下のユーザーメッセージが、「具体的な情報を求める質問」か「自身の感情や出来事についての内省的なつぶやき」かを分類してください。
+    以下のユーザーメッセージが、「明示的な情報・解決策を求めている」か「感情や状況の共有」かを判定してください。
     
-    質問の例（NotebookLMレベルの自由度）：
-    - 「雨の日 室内 おうち遊び」（情報探索）
-    - 「子どもが言うことを聞かない」（問題解決の質問）
-    - 「離乳食 食べない」（具体的な悩み）
-    - 「寝かしつけ 時間がかかる」（困りごと）
-    - 「イライラ 解消方法」（解決策を求める）
-    - 「幼稚園 選び方」（選択肢を求める）
-    - 「習い事 何がいい？」（推奨を求める）
-    - 「友達 作り方」（方法を求める）
-    - 「夜泣き 対処法」（対策を求める）
-    - 「子育て 大変」（共感とアドバイスを求める）
+    【情報探索の例】
+    - 「雨の日の室内遊びを教えて」
+    - 「子どもが言うことを聞かない時の対処法は？」
+    - 「離乳食を食べない場合の解決方法を知りたい」
+    - 「寝かしつけのコツを教えて」
+    - 「イライラの解消方法は？」
+    - 「幼稚園の選び方について知りたい」
+    - 「習い事で何がおすすめ？」
+    - 「友達の作り方を教えて」
+    - 「夜泣きの対処法は？」
     
-    つぶやきの例：
-    - 「疲れた〜」（感情の吐露）
-    - 「今日は大変だった」（出来事の報告）
-    - 「なんだか悲しい」（感情の表現）
-    - 「うれしい」（感情の表現）
-    - 「子どもが可愛い」（感情の表現）
+    【感情・状況共有の例】
+    - 「雨の日は子どもと家にいるのが大変」
+    - 「子どもが言うことを聞かなくて困ってる」
+    - 「離乳食を食べてくれない」
+    - 「寝かしつけに時間がかかる」
+    - 「イライラしてしまう」
+    - 「幼稚園選びで迷ってる」
+    - 「習い事を考えてる」
+    - 「友達ができなくて心配」
+    - 「夜泣きがひどい」
     
     判断基準：
-    - 何らかの情報、方法、解決策、アドバイスを求めている → "information_seeking"
-    - 単純に感情や出来事を共有している → "personal_reflection"
+    - 明示的に「教えて」「方法」「対処法」「コツ」などを求めている → "information_seeking"
+    - 感情や状況を共有している（解決策は求めていない） → "personal_reflection"
     
-    - 質問の場合は "information_seeking"
-    - つぶやきの場合は "personal_reflection"
-    とだけ回答してください。
-
     メッセージ: "${userMessage}"
+    
+    "information_seeking" または "personal_reflection" のどちらかで回答してください。
   `;
 
   try {
@@ -495,14 +505,14 @@ async function detectUserIntent(userMessage: string): Promise<UserIntent> {
       temperature: 0,
     });
     const result = completion.choices[0].message.content?.trim();
-    console.log('Intent detection result:', result); // ★デバッグ用のログ
+    console.log('Context-aware intent detection result:', result);
     if (result === 'information_seeking') {
       return 'information_seeking';
     }
   } catch (error) {
-    console.error('Intent detection failed:', error);
+    console.error('Context-aware intent detection failed:', error);
   }
-  return 'personal_reflection'; // デフォルトまたはエラー時は「つぶやき」として扱う
+  return 'personal_reflection'; // デフォルトは内省的なつぶやき
 }
 
 /**
@@ -597,13 +607,15 @@ ${recentThread}${contextInfo}
 [ルール]
 1) 会話の流れを意識し、前回の内容に自然に繋げる。
 2) 冒頭に1〜2文だけ共感を添える（過度な深掘りはしない）。
-3) 次に、提供されたコンテキストの範囲で質問に答える。
+3) 提供されたコンテキストを参考に、自然な会話として回答する。
 4) 断定は避け、「〜かも」「〜という考え方も」で柔らかく。
-5) 箇条書きOK。最後に一言だけ励ます。
-6) コンテキスト外は無理に答えない。
-7) 出力はプレーンテキスト。Markdown装飾は使わない。
-8) 箇条書きは日本語の点を使う。
-9) 会話が続いている場合は、自然なフォローアップ質問を1つ含める。
+5) 記事の内容をそのまま引用せず、会話として自然に示唆する。
+6) 箇条書きOK。最後に一言だけ励ます。
+7) コンテキスト外は無理に答えない。
+8) 出力はプレーンテキスト。Markdown装飾は使わない。
+9) 箇条書きは日本語の点を使う。
+10) 会話が続いている場合は、自然なフォローアップ質問を1つ含める。
+11) 参考記事は最後に「参考になりそうな記事も見つけたよ」として控えめに提示。
 `.trim();
 
     const completion = await openai.chat.completions.create({
@@ -617,9 +629,9 @@ ${recentThread}${contextInfo}
 
     const answer = completion.choices[0].message.content || 'すみません、うまくお答えできませんでした。';
     
-    // 参考記事ブロック生成
+    // 参考記事ブロック生成（控えめに提示）
     const refs = await buildReferenceBlock(userMessage, picked);
-    return `${answer}\n\n— 参考記事 —\n${refs}`;
+    return `${answer}\n\n参考になりそうな記事も見つけたよ：\n${refs}`;
 
   } catch (error) {
     console.error('RAG process failed:', error);
@@ -756,6 +768,7 @@ ${MOMO_VOICE}${profile}${conversationContext}
 - 連続質問はしない。問いは最大1つ。
 - ユーザーの表現を少し言い換えて返す（ミラーリング）。
 - 会話が続いている場合は、前回の話題に関連した自然なフォローアップを心がける。
+- ユーザーが具体的な解決策や情報を求めている場合は、「詳しい情報が必要だったら教えてね」と提案する。
 - 出力はプレーンテキスト。Markdown装飾は使わない。
 - 箇条書きは日本語の点を使う。
 `.trim();
