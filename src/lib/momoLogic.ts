@@ -408,7 +408,7 @@ async function handleInformationSeeking(participant: any, userMessage: string): 
       const wp = await wpFallbackSearch(userMessage, 3);
       if (wp.length) {
         const reasons = await makeOneSentenceReasons(userMessage, wp);
-        const list = wp.map((p, i) => `[${i+1}] ${reasons[i]}\n${p.url}`).join('\n');
+        const list = wp.map((p, i) => `[${i+1}] ${reasons[i] || 'このテーマの理解に役立ちそうです。'}\n${p.url}`).join('\n');
         return `手元のベクトル検索では直接ヒットがなかったけど、近いテーマの記事を見つけたよ。\n\n— 参考記事 —\n${list}`;
       }
       return 'ごめん、いま手元のデータからは関連が拾えなかった… もう少し違う聞き方も試してみて？';
@@ -451,7 +451,7 @@ ${recentThread}
     const reasons = await makeOneSentenceReasons(userMessage, reasonInputs);
 
     // 出力テキスト（タイトルは出さない）
-    const refs = picked.map((d: any, i: number) =>
+    const refs = picked.slice(0, 3).map((d: any, i: number) =>
       `[${i+1}] ${reasons[i] || 'このテーマの理解に役立ちそうです。'}\n${d.source_url}`
     ).join('\n');
     return `${answer}\n\n— 参考記事 —\n${refs}`;
