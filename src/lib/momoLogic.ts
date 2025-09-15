@@ -654,7 +654,7 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
   });
 
   // 未回答の画像があればキャプション確定（最優先）
-  const { data: pending } = await supabaseAdmin
+  const { data: pendings } = await supabaseAdmin
     .from('media_entries')
     .select('*')
     .eq('participant_id', participant.id)
@@ -662,23 +662,64 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
     .order('created_at', { ascending: false })
     .limit(1);
 
-  if (pending?.length) {
-    const m = pending[0];
-    const openai = new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY! });
-    const sys = 'あなたは写真日記の編集者。ユーザーの一言を活かし、やさしい1文キャプションを作る。';
-    const prompt = `画像メモ: ${m.guess}\nユーザーの追記: ${text}\n→ 30〜60字の一文キャプションで。`;
-    const c = await openai.chat.completions.create({ 
-      model:'gpt-4o-mini', 
-      messages:[{role:'system',content:sys},{role:'user',content:prompt}], 
-      temperature:0.3 
-    });
-    const caption = c.choices[0].message.content?.trim() || text.trim();
-    await supabaseAdmin.from('media_entries').update({ 
-      user_answer: text, 
-      caption, 
-      status:'done' 
-    }).eq('id', m.id);
-    return `できたよ。\n「${caption}」\n（このあと一覧ページも作れるようにするね）\n${m.image_url}`;
+  if (pendings && pendings.length) {
+    const p = pendings[0];
+
+    if (p.ask_stage === 1) {
+      // 候補のどれ？ or 自由文？
+      const choices: string[] = (() => { 
+        try { 
+          return JSON.parse(p.suggested_caption || '[]'); 
+        } catch { 
+          return []; 
+        }
+      })();
+      
+      let finalCap = text.trim();
+      const m = text.trim().match(/^[１２３1-3]$/);
+      
+      if (m) {
+        // 番号選択の場合
+        const idx = Number(m[0].replace('１','1').replace('２','2').replace('３','3')) - 1;
+        if (choices[idx]) finalCap = choices[idx];
+      } else {
+        // 自由文を"日記向けに整形"
+        const openai = new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY! });
+        const norm = await openai.chat.completions.create({
+          model: 'gpt-4o-mini', 
+          temperature: 0.4,
+          messages: [
+            { role: 'system', content: '入力文を日記のキャプションらしく20±6字で自然に整える。絵文字・記号・引用符なし。' },
+            { role: 'user', content: text }
+          ]
+        });
+        finalCap = norm.choices[0].message.content?.trim() || text;
+      }
+
+      await supabaseAdmin.from('media_entries')
+        .update({ caption: finalCap, ask_stage: 2 })
+        .eq('id', p.id);
+
+      return `いいね。「${finalCap}」でどうかな？\nもう少しだけ教えて：その瞬間、どんな気持ちだった？一言メモにするよ。`;
+    }
+
+    if (p.ask_stage === 2) {
+      // ひとことメモ保存 → 完成 → slug 発行 → URL 返す
+      const { nanoid } = await import('nanoid');
+      const slug = p.page_slug || nanoid(12);
+
+      await supabaseAdmin.from('media_entries')
+        .update({ 
+          extra_note: text.trim(), 
+          page_slug: slug, 
+          status: 'done', 
+          ask_stage: 3 
+        })
+        .eq('id', p.id);
+
+      const url = `${process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/,'') || ''}/diary/${slug}`;
+      return `できたよ。\n「${p.caption || ''}${p.caption ? '／' : ''}${text.trim()}」\n絵日記ページ：\n${url}\n（必要ならあとで文言を送ってくれれば更新もできるよ）`;
+    }
   }
 
   // 直近の同意待ちを確認

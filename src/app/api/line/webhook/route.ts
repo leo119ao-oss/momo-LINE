@@ -33,39 +33,60 @@ async function handleImage(event: MessageEvent){
     const { publicUrl } = supabaseAdmin.storage.from('media').getPublicUrl(path).data;
     console.log('IMG_EVENT: Image saved to', publicUrl);
 
-    // 軽い画像説明（4o-mini vision）
+    // 画像の基本説明を生成
     const openai = new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY! });
-    const sys = 'あなたは写真をやさしく説明する編集者。1文で「〜っぽいね」のトーン。';
-    const visMsg:any = [
-      { role:'system', content: sys },
-      { role:'user', content: [
-          { type:'text', text:'この画像は何に見える？1文で' },
-          { type:'image_url', image_url:{ url: publicUrl } }
-      ]}
-    ];
-    const g = await openai.chat.completions.create({ model:'gpt-4o-mini', messages: visMsg, temperature:0.2 });
-    const guess = g.choices[0].message.content?.trim() || '日常の一コマかな？';
-    console.log('IMG_EVENT: Generated guess:', guess);
+    const guessSys = '写真を見て情景を1文で。断定しすぎず、やさしい文体。';
+    const vision = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: guessSys },
+        { role: 'user', content: [
+            { type: 'text', text: 'この画像の情景。短い名詞句ではなく1文で。' },
+            { type: 'image_url', image_url: { url: publicUrl } }
+          ] as any }
+      ],
+      temperature: 0.6
+    });
+    const base = (vision.choices[0].message.content || '').trim();
+    console.log('IMG_EVENT: Generated base description:', base);
+
+    // キャプション候補を2-3個生成
+    const caps = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      messages: [
+        { role: 'system', content: '次の文から、日記のキャプション候補を日本語で3つ。15〜28字。言い切り or 〜だなあ調。絵文字や記号なし。' },
+        { role: 'user', content: base }
+      ],
+      temperature: 0.7
+    });
+    const candidates = (caps.choices[0].message.content || '')
+      .split(/\n+/).map(s => s.replace(/^\d+[\).、]\s*/, '')).filter(Boolean).slice(0,3);
+    console.log('IMG_EVENT: Generated candidates:', candidates);
 
     // DBにpendingとして保存
     const { data: part } = await supabaseAdmin.from('participants').select('id').eq('line_user_id', userId).single();
     await supabaseAdmin.from('media_entries').insert({
-      participant_id: part!.id, image_url: publicUrl, guess, status:'awaiting'
+      participant_id: part!.id, 
+      image_url: publicUrl, 
+      guess: base,
+      suggested_caption: JSON.stringify(candidates),
+      ask_stage: 1,
+      status: 'awaiting'
     });
-    console.log('IMG_EVENT: Saved to media_entries');
+    console.log('IMG_EVENT: Saved to media_entries with candidates');
 
-    // ユーザーへ確認質問（1文で）
-    const responseText = `${guess}\nあってる？`;
+    // LINE返信（番号選択を促す）
+    const responseText = `素敵な1枚だね。これは「${base}」って感じかな？\n\nキャプション案：\n1) ${candidates[0]}\n2) ${candidates[1] || ''}\n3) ${candidates[2] || ''}\n\n近い番号を教えてね。ぜんぶ違えば、理想の文をそのまま送ってくれて大丈夫！`;
     await lineClient.replyMessage(event.replyToken, {
-      type:'text',
+      type: 'text',
       text: responseText
     });
-    console.log('IMG_EVENT: Sent response:', responseText);
+    console.log('IMG_EVENT: Sent response with candidates');
     
   } catch (error) {
     console.error('IMG_EVENT: Error processing image:', error);
     await lineClient.replyMessage(event.replyToken, {
-      type:'text',
+      type: 'text',
       text: '画像の処理でエラーが発生しました。もう一度お試しください。'
     });
   }
