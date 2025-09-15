@@ -7,6 +7,7 @@ import { buildInfoPrompt, buildEmpathyPrompt, buildConfirmPrompt } from './promp
 import { oneLineWhy } from './rag';
 import { appRev } from './log';
 import { slugify } from './slug';
+import { logRagEvent } from './telemetry';
 
 // 共通のMomoボイス定義
 const MOMO_VOICE = `
@@ -474,6 +475,18 @@ async function handleInformationSeeking(participant: any, userMessage: string): 
     // 新しいRAG検索を使用
     const hits = await searchArticles(userMessage);
     
+    // テレメトリログを出力
+    logRagEvent({
+      rev: appRev(),
+      intent: "info",
+      q: userMessage,
+      topK: 3,
+      minSim: 0.45,
+      rawCount: hits.length,
+      keptCount: hits.length,
+      lowConfFallback: hits.length === 0
+    });
+    
     // 低確度の場合は確認質問にフォールバック
     if (hits.length === 0) {
       return buildConfirmPrompt(userMessage, [
@@ -662,6 +675,18 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
   } else {
     // 【つぶやきの場合】従来のカウンセラー応答
     console.log('Handling personal reflection intent...');
+    
+    // テレメトリログを出力
+    logRagEvent({
+      rev: appRev(),
+      intent: "empathy",
+      q: text,
+      topK: 0,
+      minSim: 0,
+      rawCount: 0,
+      keptCount: 0,
+      lowConfFallback: false
+    });
     const { data: history } = await supabaseAdmin
       .from('chat_logs')
       .select('role, content')
