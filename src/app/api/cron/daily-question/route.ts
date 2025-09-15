@@ -23,7 +23,7 @@ export async function GET(request: NextRequest) {
   let sent = 0;
   for (const u of users || []) {
     try {
-      const pid = u.participants.id;
+      const pid = (u.participants as any).id;
       const query = (blob.get(pid) || '子育て 内省 生活 家族').slice(0, 800);
       const emb = await openai.embeddings.create({ model: 'text-embedding-3-small', input: query });
       const { data: docs } = await supabaseAdmin.rpc('match_documents_arr', {
