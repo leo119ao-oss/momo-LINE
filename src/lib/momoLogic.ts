@@ -461,6 +461,76 @@ function extractTheme(message: string): string | null {
 
 /**
  * @JSDoc
+ * 【新規追加】ユーザーメッセージから主要キーワードを抽出する関数
+ * @param userMessage ユーザーメッセージ
+ * @returns 抽出されたキーワードの配列
+ */
+function extractKeyTerms(userMessage: string): string[] {
+  // 子育て関連の主要キーワード
+  const keyTerms = [
+    // 子育て・育児
+    '子育て', '育児', '子ども', '子供', '赤ちゃん', '幼児', '小学生', '中学生', '高校生',
+    // 日常生活
+    '食事', '離乳食', '睡眠', '寝かしつけ', '夜泣き', '遊び', 'おもちゃ', '勉強', '宿題', '習い事',
+    // 感情・心理
+    '疲れ', '疲労', 'イライラ', 'ストレス', '不安', '心配', '悩み', '困る', '楽しい', '嬉しい', '悲しい',
+    // 人間関係
+    '友達', '友だち', '家族', '夫', '妻', '親', '祖父母', '兄弟', '姉妹', 'ママ', 'パパ',
+    // 健康・安全
+    '病気', '体調', '怪我', 'けが', '安全', '危険', '健康', '病院', '薬',
+    // 教育・学習
+    '幼稚園', '保育園', '学校', '教育', '学習', '教室', '先生', '先生',
+    // 活動・体験
+    '公園', '散歩', '外出', '旅行', 'お出かけ', 'イベント', 'お祭り', '運動', 'スポーツ'
+  ];
+  
+  // ユーザーメッセージに含まれるキーワードを抽出
+  const foundTerms = keyTerms.filter(term => userMessage.includes(term));
+  
+  // キーワードが見つからない場合は、メッセージから名詞を抽出
+  if (foundTerms.length === 0) {
+    // 簡単な名詞抽出（ひらがな・カタカナ・漢字の連続）
+    const nounPattern = /[ひらがなカタカナ漢字]{2,}/g;
+    const nouns = userMessage.match(nounPattern) || [];
+    return nouns.slice(0, 3); // 最大3つまで
+  }
+  
+  return foundTerms;
+}
+
+/**
+ * @JSDoc
+ * 【新規追加】テキストにキーワードが含まれているかチェックする関数
+ * @param content チェック対象のテキスト
+ * @param keywords キーワードの配列
+ * @returns いずれかのキーワードが含まれているかどうか
+ */
+function containsAny(content: string, keywords: string[]): boolean {
+  if (!keywords.length) return true; // キーワードがない場合は通す
+  return keywords.some(keyword => content.includes(keyword));
+}
+
+/**
+ * @JSDoc
+ * 【新規追加】低確度時の確認質問フォールバック関数
+ * @param userMessage ユーザーメッセージ
+ * @returns 確認質問の応答
+ */
+function askForClarification(userMessage: string): string {
+  const clarificationPrompts = [
+    `「${userMessage}」について、もう少し詳しく教えてもらえる？具体的にどんなことが知りたい？`,
+    `「${userMessage}」のことだね。どの部分について特に気になってる？`,
+    `「${userMessage}」について話したいんだね。もう少し詳しく聞かせてもらえる？`,
+    `「${userMessage}」について、どんな風に困ってる？具体的に教えてくれる？`
+  ];
+  
+  // ランダムに選択
+  const randomIndex = Math.floor(Math.random() * clarificationPrompts.length);
+  return clarificationPrompts[randomIndex];
+}
+
+/**
+ * @JSDoc
  * 【新規追加】会話内容が不明確な場合を検出し、適切に聞き返す関数
  * @param userMessage ユーザーメッセージ
  * @param conversationContext 会話の文脈
@@ -639,10 +709,13 @@ async function handleInformationSeeking(participant: any, userMessage: string): 
     });
     const queryEmbedding = embeddingResponse.data[0].embedding;
 
-    // 2. Supabase DBから関連情報を検索 (SQLで作成した関数を呼び出す)
+    // 2. Supabase DBから関連情報を検索 (改善版)
+    const MAX_K = 3;
+    const MIN_SIM = 0.45; // 0.15 → 0.45 に引き上げ（まずはこれで様子見）
+
     const { data: documents, error } = await supabaseAdmin.rpc('match_documents_arr', {
-      query_embedding: queryEmbedding, // number[]
-      match_count: 8
+      query_embedding: queryEmbedding,
+      match_count: 6,                // 8 → 6（一次候補）
     });
 
     if (error) throw new Error(`Supabase search error: ${error.message}`);
@@ -659,40 +732,30 @@ async function handleInformationSeeking(participant: any, userMessage: string): 
           input: expanded,
         });
         const { data: docs2 } = await supabaseAdmin.rpc('match_documents_arr', {
-          query_embedding: emb2.data[0].embedding, match_count: 8
+          query_embedding: emb2.data[0].embedding, match_count: 6
         });
         docs = docs2 ?? [];
       }
     }
     
-    // documents には similarity を含む前提（match_documents_arr）
-    const MIN_SIM = 0.15; // NotebookLMレベルの自由度: より低い閾値で関連記事を取得
-    const filtered = docs.filter((d: any) => (d.similarity ?? 0) >= MIN_SIM);
-    const picked = (filtered.length ? filtered : docs).slice(0, 3); // 3件固定
-    console.log(`[RAG] after_filter: ${filtered.length}, picked: ${picked.length}`);
+    // 二次フィルタ（本文に主要語が含まれるか + 類似度）
+    const keywords = extractKeyTerms(userMessage);
+    const hardFiltered = docs.filter((d: any) => {
+      const hit = containsAny(d.content || '', keywords);
+      const okSim = (d.similarity ?? 0) >= MIN_SIM;
+      return hit && okSim;
+    });
+
+    const picked = (hardFiltered.length ? hardFiltered : docs).slice(0, MAX_K);
+    console.log(`[RAG] keywords: ${keywords.join(',')}, hardFiltered: ${hardFiltered.length}, picked: ${picked.length}`);
 
     // picked に対して lazy-fill を回す直前
     console.log('RAG_META_BEFORE', picked.map((p: any) => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
 
     // ここまでで picked.length が0ならフォールバック
     if (picked.length === 0) {
-      const wp = await wpFallbackSearch(userMessage, 3);
-      if (wp.length) {
-        // WPデータをpicked形式に変換してbuildReferenceBlockを使用
-        const wpAsPicked = wp.map(p => ({ source_url: p.url, content: p.snippet || '' }));
-        const refs = await buildReferenceBlock(userMessage, wpAsPicked);
-        return `手元のベクトル検索では直接ヒットがなかったけど、近いテーマの記事を見つけたよ。\n\n— 参考記事 —\n${refs}`;
-      }
-      
-      // 同意フラグを保存し、質問
-      const exp = new Date(Date.now()+ 1000*60*10).toISOString(); // 10分有効
-      await supabaseAdmin.from('pending_intents').insert({
-        participant_id: participant.id,
-        kind: 'web_search',
-        payload: { query: userMessage },
-        expires_at: exp
-      });
-      return '手元の知識では見つからなかったよ。\nよかったらネットでも調べようか？（はい / いいえ）';
+      // 低確度：確認質問にフォールバック
+      return askForClarification(userMessage);
     }
 
     const contextText = picked.map((d: any) => d.content).join('\n---\n');
