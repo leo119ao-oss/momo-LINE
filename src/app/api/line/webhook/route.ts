@@ -157,7 +157,7 @@ export async function POST(req: NextRequest) {
                     action: { 
                       type: "uri" as const, 
                       label: "研究に参加", 
-                      uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_CONSENT_ID}` 
+                      uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_CONSENT_ID || '2008112810-zeKELwrx'}` 
                     } 
                   },
                   { 
@@ -165,7 +165,7 @@ export async function POST(req: NextRequest) {
                     action: { 
                       type: "uri" as const, 
                       label: "今日の1分", 
-                      uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_DAILY_ID}` 
+                      uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_DAILY_ID || '2008112810-GLXVgj3z'}` 
                     } 
                   },
                   { 
@@ -173,7 +173,7 @@ export async function POST(req: NextRequest) {
                     action: { 
                       type: "uri" as const, 
                       label: "週次まとめ", 
-                      uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_WEEKLY_ID}` 
+                      uri: `https://liff.line.me/${process.env.NEXT_PUBLIC_LIFF_WEEKLY_ID || '2008112810-VRKlky4e'}` 
                     } 
                   },
                 ] 

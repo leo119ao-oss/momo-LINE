@@ -438,7 +438,7 @@ async function finalizeIntentWithContext(userMessage: string): Promise<UserInten
     判断基準：
     - 明示的に「教えて」「方法」「対処法」「コツ」などを求めている → "information_seeking"
     - 感情や状況を共有している（解決策は求めていない） → "personal_reflection"
-    
+
     メッセージ: "${userMessage}"
     
     "information_seeking" または "personal_reflection" のどちらかで回答してください。
@@ -582,7 +582,7 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
         if (choices[idx]) finalCap = choices[idx];
       } else {
         // 自由文を"日記向けに整形"
-        const openai = new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY! });
+    const openai = new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY! });
         const norm = await openai.chat.completions.create({
           model: 'gpt-4o-mini', 
           temperature: 0.4,
@@ -712,14 +712,14 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
     if (clarificationResponse) {
       return clarificationResponse;
     }
-    
-    const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
+
+      const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
     
     // 会話の継続性を考慮したシステムプロンプト
     const conversationContext = conversationFlow.isDeepConversation ? 
       `\n[会話の流れ]\n前回のテーマ: ${conversationFlow.lastTheme || '新しい話題'}\n会話の深さ: ${conversationFlow.messageCount}回のやり取り\n前回のAI応答: ${conversationFlow.lastAiMessage}` : '';
     
-    const reflectionSystem = `
+      const reflectionSystem = `
 ${MOMO_VOICE}${profile}${conversationContext}
 
 [ルール]

@@ -56,7 +56,7 @@ ${a}
     判断基準：
     - 明示的に「教えて」「方法」「対処法」「コツ」などを求めている → "information_seeking"
     - 感情や状況を共有している（解決策は求めていない） → "personal_reflection"
-    
+
     メッセージ: "${e}"
     
     "information_seeking" または "personal_reflection" のどちらかで回答してください。
