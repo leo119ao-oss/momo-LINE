@@ -20,8 +20,14 @@ export default function ConsentPage() {
 
   useEffect(() => { 
     (async () => {
-      await ensureLiff(process.env.NEXT_PUBLIC_LIFF_CONSENT_ID!);
-      setUid(await getLineUserId());
+      try {
+        const liffId = process.env.NEXT_PUBLIC_LIFF_CONSENT_ID || '2008112810-zeKELwrx';
+        console.log(`[CONSENT] LIFF ID: ${liffId}`);
+        await ensureLiff(liffId);
+        setUid(await getLineUserId());
+      } catch (error) {
+        console.error('[CONSENT] LIFF initialization error:', error);
+      }
     })(); 
   }, []);
 

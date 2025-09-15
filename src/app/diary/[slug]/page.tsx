@@ -15,25 +15,32 @@ export default function DiaryPage({ params }: { params: { slug: string } }) {
 
   useEffect(() => {
     (async () => {
-      await ensureLiff(process.env.NEXT_PUBLIC_LIFF_DIARY_ID!);
-      
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
+      try {
+        const liffId = process.env.NEXT_PUBLIC_LIFF_DIARY_ID || '2008112810-qaB8YQdO';
+        console.log(`[DIARY] LIFF ID: ${liffId}`);
+        await ensureLiff(liffId);
+        
+        const supabase = createClient(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+        );
 
-      const { data } = await supabase
-        .from('media_entries')
-        .select('*')
-        .eq('page_slug', params.slug)
-        .maybeSingle();
+        const { data } = await supabase
+          .from('media_entries')
+          .select('*')
+          .eq('page_slug', params.slug)
+          .maybeSingle();
 
-      if (!data) {
-        notFound();
+        if (!data) {
+          notFound();
+        }
+        
+        setEntry(data);
+        setLoading(false);
+      } catch (error) {
+        console.error('[DIARY] LIFF initialization error:', error);
+        setLoading(false);
       }
-      
-      setEntry(data);
-      setLoading(false);
     })();
   }, [params.slug]);
 

@@ -14,8 +14,14 @@ export default function Daily() {
 
   useEffect(() => { 
     (async () => {
-      await ensureLiff(process.env.NEXT_PUBLIC_LIFF_DAILY_ID!);
-      setUid(await getLineUserId());
+      try {
+        const liffId = process.env.NEXT_PUBLIC_LIFF_DAILY_ID || '2008112810-GLXVgj3z';
+        console.log(`[DAILY] LIFF ID: ${liffId}`);
+        await ensureLiff(liffId);
+        setUid(await getLineUserId());
+      } catch (error) {
+        console.error('[DAILY] LIFF initialization error:', error);
+      }
     })(); 
   }, []);
 

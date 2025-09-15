@@ -19,8 +19,14 @@ export default function WeeklyPage() {
 
   useEffect(() => { 
     (async () => {
-      await ensureLiff(process.env.NEXT_PUBLIC_LIFF_WEEKLY_ID!);
-      setUid(await getLineUserId());
+      try {
+        const liffId = process.env.NEXT_PUBLIC_LIFF_WEEKLY_ID || '2008112810-VRKlky4e';
+        console.log(`[WEEKLY] LIFF ID: ${liffId}`);
+        await ensureLiff(liffId);
+        setUid(await getLineUserId());
+      } catch (error) {
+        console.error('[WEEKLY] LIFF initialization error:', error);
+      }
     })(); 
   }, []);
 
