@@ -5,10 +5,174 @@ import OpenAI from 'openai';
 // 共通のMomoボイス定義
 const MOMO_VOICE = `
 あなたはMomo。母親の内省を支える温かい相手。
-- 口調: やさしく、ねぎらい/共感を一言そえる。「〜だね」「〜かもね」を適度に。
-- 断定や評価を避ける。提案は「〜かも」「〜してみる？」と低圧で。
-- 長文になりすぎない。段落を分け、読みやすく。
+- 口調: やさしく、ねぎらい/共感を一言そえる（〜だね/〜かもね）。
+- 断定や評価は避け、「〜かも」「〜してみる？」の提案。
+- 長文にしすぎない。段落を分けて読みやすく。
 `.trim();
+
+function getSlugFromUrl(url: string): string | null {
+  try {
+    const u = new URL(url);
+    const parts = u.pathname.split('/').filter(Boolean);
+    return parts.length ? decodeURIComponent(parts.at(-1)!) : null;
+  } catch { return null; }
+}
+
+function cleanText(s?: string) {
+  if (!s) return '';
+  // HTMLタグ除去 + サイト名サフィックスの軽い除去
+  return s.replace(/<[^>]*>/g, '').replace(/\s*\|\s*.*$/, '').trim();
+}
+
+async function fetchMetaFromOEmbed(url: string) {
+  const ep = `https://www.okaasan.net/wp-json/oembed/1.0/embed?url=${encodeURIComponent(url)}`;
+  const r = await fetch(ep, { cache: 'no-store' });
+  if (!r.ok) return null;
+  const j: any = await r.json();
+  const title = cleanText(j?.title);
+  const author = j?.author_name || 'お母さん大学';
+  return title ? { title, author_name: author } : null;
+}
+
+async function fetchMetaFromPosts(url: string) {
+  const base = 'https://www.okaasan.net/wp-json/wp/v2/posts';
+  const slug = getSlugFromUrl(url);
+  if (slug) {
+    const r1 = await fetch(`${base}?slug=${encodeURIComponent(slug)}&_embed=author&per_page=1`);
+    if (r1.ok) {
+      const arr: any[] = await r1.json();
+      const p = arr?.[0];
+      if (p) return {
+        title: cleanText(p?.title?.rendered),
+        author_name: p?._embedded?.author?.[0]?.name || 'お母さん大学',
+      };
+    }
+  }
+  // URLでのsearchは精度が落ちるので最後の最後だけ
+  const r2 = await fetch(`${base}?search=${encodeURIComponent(url)}&_embed=author&per_page=1`);
+  if (r2.ok) {
+    const arr: any[] = await r2.json();
+    const p = arr?.[0];
+    if (p) return {
+      title: cleanText(p?.title?.rendered),
+      author_name: p?._embedded?.author?.[0]?.name || 'お母さん大学',
+    };
+  }
+  return null;
+}
+
+async function fetchTitleFromHtml(url: string) {
+  try {
+    const html = await (await fetch(url, { cache: 'no-store' })).text();
+    const m = html.match(/<title>(.*?)<\/title>/i);
+    if (m?.[1]) return { title: cleanText(m[1]), author_name: 'お母さん大学' };
+  } catch {}
+  return null;
+}
+
+const metaCache = new Map<string, { title?: string; author_name?: string }>();
+
+export async function fillTitleAuthorIfMissing(hit: any) {
+  if (hit.title && hit.author_name) return hit;
+
+  const cached = metaCache.get(hit.source_url);
+  if (cached) {
+    hit.title = hit.title ?? cached.title;
+    hit.author_name = hit.author_name ?? cached.author_name;
+    return hit;
+  }
+
+  // 1) oEmbed → 2) posts → 3) HTML の順
+  let meta = await fetchMetaFromOEmbed(hit.source_url);
+  if (!meta) meta = await fetchMetaFromPosts(hit.source_url);
+  if (!meta) meta = await fetchTitleFromHtml(hit.source_url);
+
+  if (meta) {
+    metaCache.set(hit.source_url, meta);
+    hit.title = hit.title ?? meta.title;
+    hit.author_name = hit.author_name ?? meta.author_name;
+
+    // 成功時ログ（前後が分かるように）
+    console.log('RAG_META_HIT', { url: hit.source_url, title: hit.title, author: hit.author_name });
+
+    // 将来のためにDBにもベストエフォートで保存
+    try {
+      const { supabaseAdmin } = await import('@/lib/supabaseAdmin');
+      await supabaseAdmin.from('documents')
+        .update({ title: meta.title, author_name: meta.author_name })
+        .eq('source_url', hit.source_url);
+    } catch {}
+  } else {
+    // 失敗時ログ（既にあればタグ名だけ合わせる）
+    console.warn('RAG_META_MISS', hit.source_url);
+  }
+  return hit;
+}
+
+
+export async function buildReferenceBlock(userMessage: string, picked: any[]) {
+  // lazy-fill処理（タイトル・著者情報の補完）
+  for (let i = 0; i < picked.length; i++) {
+    picked[i] = await fillTitleAuthorIfMissing(picked[i]);
+  }
+
+  // picked に対して lazy-fill を回した直後
+  console.log('RAG_META_AFTER', picked.map((p: any) => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
+
+  // 理由を生成
+  const reasonInputs = picked.map((d: any) => ({
+    url: d.source_url,
+    snippet: (d.content ?? '').slice(0, 500)
+  }));
+  const reasons = await makeOneSentenceReasons(userMessage, reasonInputs);
+
+  // ビルド情報とログ
+  const BUILD = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0,7) ?? 'local';
+  console.log('RAG_FMT', { topk: picked.length, hasReasons: !!reasons?.length, build: BUILD });
+
+  // 参考記事ブロック生成
+  const refs = picked.slice(0, 3).map((d: any, i: number) =>
+    `[${i+1}] ${reasons[i] || 'このテーマの理解に役立ちそうです。'}\n${d.source_url}`
+  ).join('\n');
+
+  return `${refs}\n\n(β ${BUILD})`;  // ★一時的
+}
+
+async function makeOneSentenceReasons(
+  userMessage: string,
+  items: { url: string; snippet: string }[]
+): Promise<string[]> {
+  const sys = `
+あなたは記事レコメンドの編集者です。各候補が「ユーザーの質問に対してなぜ有用か」を日本語で１文ずつ書きます。
+- 断定調は避け、「〜に役立ちそう」「〜のヒントがある」とやわらかく。
+- 具体語を1つ入れる（例: 年齢帯/具体アクティビティ/場面など）。
+- 出力は JSON 配列（文字列3要素のみ）。`.trim();
+
+  const list = items.map((it, i) =>
+    `[${i+1}] URL: ${it.url}\n抜粋: """${it.snippet.substring(0, 400)}"""`
+  ).join('\n');
+
+  const prompt = `質問: ${userMessage}\n候補:\n${list}\n\n上記に対応する３つの理由を JSON 配列で返してください。`;
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.2,
+      messages: [{ role: 'system', content: sys }, { role: 'user', content: prompt }],
+    });
+    const txt = resp.choices[0].message.content ?? '[]';
+    try {
+      const arr = JSON.parse(txt);
+      if (Array.isArray(arr) && arr.length) return arr.map(String).slice(0, items.length);
+    } catch {
+      // フォールバック：行分割
+      return txt.split('\n').map(s => s.replace(/^\s*[\[\(]?\d+[\]\).]\s*/, '').trim()).filter(Boolean).slice(0, items.length);
+    }
+  } catch (e) {
+    console.warn('REASON_GEN_FAIL', e);
+  }
+  // 最終フォールバック
+  return items.map(() => 'このテーマに関する実践的なヒントがまとまっています。');
+}
 
 function expandJaQuery(q: string) {
   const norms: Array<[RegExp, string]> = [
@@ -59,22 +223,20 @@ function expandJaQuery(q: string) {
   return out;
 }
 
-async function wpFallbackSearch(query: string, limit = 5) {
+async function wpFallbackSearch(query: string, limit = 3) {
   try {
     const url = new URL('https://www.okaasan.net/wp-json/wp/v2/posts');
     url.searchParams.set('search', query);
     url.searchParams.set('per_page', String(limit));
-    url.searchParams.set('_embed', 'author'); // 著者名を埋め込む
-
-    const res = await fetch(url.toString(), { method: 'GET' });
+    url.searchParams.set('_embed', 'author');
+    const res = await fetch(url.toString());
     if (!res.ok) return [];
     const posts: any[] = await res.json();
 
-    const sanitize = (s: string) => s.replace(/<[^>]*>/g, '').trim();
+    const sanitize = (s: string) => (s || '').replace(/<[^>]*>/g, '').trim();
     return posts.map(p => ({
       url: p.link as string,
-      title: sanitize(p.title?.rendered ?? ''),
-      author: String(p?._embedded?.author?.[0]?.name ?? 'お母さん大学'),
+      snippet: sanitize(p?.excerpt?.rendered || p?.title?.rendered || ''),
     }));
   } catch {
     return [];
@@ -211,15 +373,13 @@ async function detectUserIntent(userMessage: string): Promise<UserIntent> {
 /**
  * @JSDoc
  * 【新規追加】情報探索（質問）に対応するRAG処理を行う関数。
- * @param userMessage ユーザーからの質問
  * @param participant 参加者情報（会話履歴取得用）
+ * @param userMessage ユーザーからの質問
  * @returns AIが生成した回答と引用元URL
  */
-async function handleInformationSeeking(userMessage: string, participant: any): Promise<string> {
+async function handleInformationSeeking(participant: any, userMessage: string): Promise<string> {
   console.log('Handling information seeking intent...');
   try {
-    // 会話コンテキストを取得
-    const { lastUser, thread } = await getConversationContext(participant.id);
     // 1st try: 元のクエリでベクトル検索
     let queryText = userMessage;
     const embeddingResponse = await openai.embeddings.create({
@@ -229,10 +389,9 @@ async function handleInformationSeeking(userMessage: string, participant: any): 
     const queryEmbedding = embeddingResponse.data[0].embedding;
 
     // 2. Supabase DBから関連情報を検索 (SQLで作成した関数を呼び出す)
-    const { data: documents, error } = await supabaseAdmin.rpc('match_documents', {
+    const { data: documents, error } = await supabaseAdmin.rpc('match_documents_arr', {
       query_embedding: queryEmbedding, // number[]
-      match_count: 8,
-      match_threshold: 0.1
+      match_count: 8
     });
 
     if (error) throw new Error(`Supabase search error: ${error.message}`);
@@ -248,8 +407,8 @@ async function handleInformationSeeking(userMessage: string, participant: any): 
           model: 'text-embedding-3-small',
           input: expanded,
         });
-        const { data: docs2 } = await supabaseAdmin.rpc('match_documents', {
-          query_embedding: emb2.data[0].embedding, match_count: 8, match_threshold: 0.1
+        const { data: docs2 } = await supabaseAdmin.rpc('match_documents_arr', {
+          query_embedding: emb2.data[0].embedding, match_count: 8
         });
         docs = docs2 ?? [];
       }
@@ -258,15 +417,20 @@ async function handleInformationSeeking(userMessage: string, participant: any): 
     // documents には similarity を含む前提（match_documents_arr）
     const MIN_SIM = 0.15; // NotebookLMレベルの自由度: より低い閾値で関連記事を取得
     const filtered = docs.filter((d: any) => (d.similarity ?? 0) >= MIN_SIM);
-    const picked = (filtered.length ? filtered : docs).slice(0, 5); // より多くの記事を返す
+    const picked = (filtered.length ? filtered : docs).slice(0, 3); // 3件固定
     console.log(`[RAG] after_filter: ${filtered.length}, picked: ${picked.length}`);
+
+    // picked に対して lazy-fill を回す直前
+    console.log('RAG_META_BEFORE', picked.map((p: any) => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
 
     // ここまでで picked.length が0ならフォールバック
     if (picked.length === 0) {
-      const wp = await wpFallbackSearch(userMessage, 5);
+      const wp = await wpFallbackSearch(userMessage, 3);
       if (wp.length) {
-        const list = wp.map((p, i) => `[${i+1}] ${p.title} — ${p.author}\n${p.url}`).join('\n');
-        return `手元のベクトル検索では直接ヒットがなかったけど、近いテーマっぽい記事を見つけたよ。\n\n— 参考候補 —\n${list}`;
+        // WPデータをpicked形式に変換してbuildReferenceBlockを使用
+        const wpAsPicked = wp.map(p => ({ source_url: p.url, content: p.snippet || '' }));
+        const refs = await buildReferenceBlock(userMessage, wpAsPicked);
+        return `手元のベクトル検索では直接ヒットがなかったけど、近いテーマの記事を見つけたよ。\n\n— 参考記事 —\n${refs}`;
       }
       return 'ごめん、いま手元のデータからは関連が拾えなかった… もう少し違う聞き方も試してみて？';
     }
@@ -274,18 +438,18 @@ async function handleInformationSeeking(userMessage: string, participant: any): 
     const contextText = picked.map((d: any) => d.content).join('\n---\n');
     const sourceUrls = Array.from(new Set(picked.map((d: any) => d.source_url)));
 
-    const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
+    const { lastUser, thread: recentThread } = await getConversationContext(participant.id);
     const systemPrompt = `
-${MOMO_VOICE}${profile}
+${MOMO_VOICE}
 
 [最近の会話ログ]
-${thread}
+${recentThread}
 
 [ルール]
-1) 最初に1〜2文だけ、直前のユーザーの気持ちに寄り添う（過度に深掘りしない）。
-2) 次に「質問への答え」を、与えられたコンテキスト（記事チャンク）から根拠をもとに要約。
-3) 断定は避け、「〜かも」「〜という考え方も」でやわらかく。
-4) 短い箇条書きOK。最後に一言だけ励ます。
+1) 冒頭に1〜2文だけ共感を添える（過度な深掘りはしない）。
+2) 次に、提供されたコンテキストの範囲で質問に答える。
+3) 断定は避け、「〜かも」「〜という考え方も」で柔らかく。
+4) 箇条書きOK。最後に一言だけ励ます。
 5) コンテキスト外は無理に答えない。
 `.trim();
 
@@ -300,12 +464,8 @@ ${thread}
 
     const answer = completion.choices[0].message.content || 'すみません、うまくお答えできませんでした。';
     
-    // 引用の体裁を整える（番号＋タイトル — 著者＋URL）
-    const refs = picked.map((d: any, i: number) => {
-      const t = d.title ?? '(タイトル未取得)';
-      const a = d.author_name ?? 'お母さん大学';
-      return `[${i+1}] ${t} — ${a}\n${d.source_url}`;
-    }).join('\n');
+    // 参考記事ブロック生成
+    const refs = await buildReferenceBlock(userMessage, picked);
     return `${answer}\n\n— 参考記事 —\n${refs}`;
 
   } catch (error) {
@@ -337,7 +497,7 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
 
   if (intent === 'information_seeking') {
     // 【質問の場合】RAG処理を呼び出す
-    aiMessage = await handleInformationSeeking(text, participant);
+    aiMessage = await handleInformationSeeking(participant, text);
   } else {
     // 【つぶやきの場合】従来のカウンセラー応答
     console.log('Handling personal reflection intent...');
@@ -358,8 +518,8 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
     // 現在のユーザーメッセージを追加
     messages.push({ role: 'user', content: text });
 
-    const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
-    const systemPrompt = `
+      const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
+      const reflectionSystem = `
 ${MOMO_VOICE}${profile}
 
 [ルール]
@@ -370,7 +530,7 @@ ${MOMO_VOICE}${profile}
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      messages: [{ role: 'system', content: systemPrompt }, ...messages],
+      messages: [{ role: 'system', content: reflectionSystem }, ...messages],
     });
     aiMessage = completion.choices[0].message.content || 'うんうん、そうなんだね。';
   }
