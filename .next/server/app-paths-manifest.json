@@ -4,5 +4,8 @@
   "/diary/page": "app/diary/page.js",
   "/help/page": "app/help/page.js",
   "/weekly/page": "app/weekly/page.js",
+  "/api/ask/route": "app/api/ask/route.js",
+  "/api/diary/finalize/route": "app/api/diary/finalize/route.js",
+  "/api/diary/upload/route": "app/api/diary/upload/route.js",
   "/research/consent/page": "app/research/consent/page.js"
 }

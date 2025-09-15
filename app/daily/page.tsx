@@ -1,6 +1,7 @@
 "use client";
 import { useEffect, useState } from "react";
 import { ensureLiff, getLineUserId } from "@/lib/liffClient";
+import RagWidget from "./RagWidget";
 
 export default function Page() {
   const [uid, setUid] = useState<string>();
@@ -56,6 +57,8 @@ export default function Page() {
       </div>
 
       <p style={{fontSize:12, color:"#666"}}>※必要な時だけ、後続で「確認の質問」や「記事3件」が出ます。</p>
+      
+      <RagWidget contact={uid}/>
     </Shell>
   );
 }
