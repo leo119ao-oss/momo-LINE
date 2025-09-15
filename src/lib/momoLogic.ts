@@ -1,6 +1,12 @@
 // import { supabase } from './supabaseClient';
 import { supabaseAdmin } from './supabaseAdmin';
 import OpenAI from 'openai';
+import { searchArticles } from './search';
+import type { RagHit } from './rag';
+import { buildInfoPrompt, buildEmpathyPrompt, buildConfirmPrompt } from './prompts';
+import { oneLineWhy } from './rag';
+import { appRev } from './log';
+import { slugify } from './slug';
 
 // 共通のMomoボイス定義
 const MOMO_VOICE = `
@@ -12,12 +18,6 @@ const MOMO_VOICE = `
 - 箇条書きは日本語の点を使う。
 `.trim();
 
-// 質問系専用のシステムプロンプト
-const SYSTEM_INFO_SEEKING = `
-あなたは丁寧で簡潔なアシスタント。質問に対しては前置きを短く、結論→箇条書き→参考記事の順で返す。
-不要な感想や長い共感は加えない。数字や手順は簡潔に。絵文字は使わない。
-`.trim();
-
 // 理由パースのユーティリティ
 function _clean(s: any) {
   return String(s ?? '')
@@ -26,58 +26,6 @@ function _clean(s: any) {
     .slice(0, 140);
 }
 
-function parseReasons(raw: string, want: number): string[] {
-  let t = (raw || '').trim();
-  // コードフェンス/言語ラベル除去
-  t = t.replace(/```[\s\S]*?```/g, (m) => m.replace(/```json|```/g, '')).trim();
-  t = t.replace(/^```json|^```|```$/gm, '').trim();
-  // 1) 素直にJSON（配列 or {reasons:[]})
-  try {
-    const j = JSON.parse(t);
-    if (Array.isArray(j)) return j.map(_clean).slice(0, want);
-    if (Array.isArray((j as any).reasons)) return (j as any).reasons.map(_clean).slice(0, want);
-  } catch {}
-  // 2) 角カッコの部分だけ取り出して再パース
-  const m = t.match(/\[[\s\S]*\]/);
-  if (m) {
-    try {
-      const arr = JSON.parse(m[0]);
-      if (Array.isArray(arr)) return arr.map(_clean).slice(0, want);
-    } catch {}
-  }
-  // 3) 箇条書き/番号行のフォールバック
-  const lines = t.split('\n')
-    .map(l => l
-      .replace(/^\s*[-*]\s*/, '')
-      .replace(/^\s*\d+[\.\)]\s*/, '')
-      .trim())
-    .filter(Boolean);
-  return lines.map(_clean).slice(0, want);
-}
-
-async function generateOneReason(
-  userMessage: string,
-  item: { url: string; snippet: string }
-): Promise<string> {
-  const sys = `あなたは記事レコメンドの編集者。以下の候補が質問に「なぜ役立つか」を日本語で１文だけ返す。
-- 断定せず「〜に役立ちそう」「〜のヒントがある」等のやわらかい表現
-- 具体語を１つ入れる（年齢帯/場面/活動など）
-- 出力は１文のみ（飾りや箇条書き禁止）`;
-  const prompt = `質問: ${userMessage}
-候補URL: ${item.url}
-抜粋: """${item.snippet.slice(0, 400)}"""
-=> １文だけ出力`;
-  try {
-    const r = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      temperature: 0.2,
-      messages: [{ role: 'system', content: sys }, { role: 'user', content: prompt }],
-    });
-    return _clean(r.choices[0].message.content ?? '');
-  } catch {
-    return 'このテーマに関する実践的なヒントがまとまっています。';
-  }
-}
 
 function cleanForLine(raw: string): string {
   return (raw ?? '')
@@ -205,139 +153,11 @@ export async function buildReferenceBlock(userMessage: string, picked: any[]) {
   // picked に対して lazy-fill を回した直後
   console.log('RAG_META_AFTER', picked.map((p: any) => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
 
-  // 理由を生成
-  const reasonInputs = picked.map((d: any) => ({
-    url: d.source_url,
-    snippet: (d.content ?? '').slice(0, 500)
-  }));
-  const reasons = await makeOneSentenceReasons(userMessage, reasonInputs);
-
-  // 失敗検知のログ
-  console.log('RAG_REASONS', { want: reasonInputs.length, got: reasons.length, bad: reasons.filter(r => !r || r==='json').length });
-
-  // ビルド情報とログ
-  const BUILD = process.env.VERCEL_GIT_COMMIT_SHA?.slice(0,7) ?? 'local';
-  console.log('RAG_FMT', { topk: picked.length, hasReasons: !!reasons?.length, build: BUILD });
-
-  // 参考記事ブロック生成
-  const refs = picked.slice(0, 3).map((d: any, i: number) =>
-    `[${i+1}] ${reasons[i] || 'このテーマの理解に役立ちそうです。'}\n${d.source_url}`
-  ).join('\n');
-
-  return refs;
+  // 参考記事ブロック生成（新しい構造では不要）
+  return '';
 }
 
-// まずはバッチJSONで作り、壊れていたら１件ずつ生成にフォールバック
-async function makeOneSentenceReasons(
-  userMessage: string,
-  items: { url: string; snippet: string }[]
-): Promise<string[]> {
-  const want = items.length;
-  const sys = `あなたは記事レコメンドの編集者。各候補が質問に「なぜ役立つか」を日本語で１文ずつ作成し、
-配列だけをJSONで返す（前後の文章・コードフェンス禁止）。`;
-  const list = items.map((it, i) =>
-    `[${i+1}] URL: ${it.url}\n抜粋: """${it.snippet.slice(0, 400)}"""`
-  ).join('\n');
-  const prompt = `質問: ${userMessage}
-候補:
-${list}
-=> １文×${want}個。JSON配列のみで返す`;
-  try {
-    const resp = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      temperature: 0.1,
-      // JSON配列を強制（対応モデル）
-      response_format: { type: 'json_object' },
-      messages: [{ role: 'system', content: sys }, { role: 'user', content: prompt }],
-    });
-    const raw = resp.choices[0].message.content ?? '[]';
-    // JSONモードでも念のため堅牢パース
-    let reasons = parseReasons(raw, want);
-    // 個数が不足/空なら１件ずつ生成
-    if (reasons.length < want || reasons.some(r => !r || r.toLowerCase() === 'json')) {
-      const each = [];
-      for (const it of items) each.push(await generateOneReason(userMessage, it));
-      reasons = each;
-    }
-    // それでも足りなければ埋め草
-    while (reasons.length < want) reasons.push('このテーマの理解に役立ちそうです。');
-    return reasons.slice(0, want);
-  } catch (e) {
-    // 最終フォールバック：全部１件ずつ
-    const each = [];
-    for (const it of items) each.push(await generateOneReason(userMessage, it));
-    return each;
-  }
-}
 
-function expandJaQuery(q: string) {
-  const norms: Array<[RegExp, string]> = [
-    // 天気・環境関連
-    [/雨の日/g, '雨の日 室内 家の中 おうち遊び 外出できない日 天気悪い'],
-    [/晴れ/g, '晴れ 外遊び 公園 散歩 外出'],
-    [/暑い|寒い/g, '暑い 寒い 温度 気候 季節'],
-    
-    // 感情・心理関連
-    [/イライラ/g, 'イライラ ストレス 気持ちの波 モヤモヤ 怒り 不満'],
-    [/疲れ/g, '疲れ 疲労 だるい しんどい 元気ない'],
-    [/不安|心配/g, '不安 心配 悩み 困る どうしよう'],
-    [/楽しい|嬉しい/g, '楽しい 嬉しい うれしい 喜び 幸せ'],
-    
-    // 睡眠関連
-    [/寝かしつけ|ねかしつけ/g, '寝かしつけ 入眠 寝つき 夜泣き 睡眠 眠り'],
-    [/夜泣き/g, '夜泣き 夜中 泣く 睡眠 不眠'],
-    
-    // 食事関連
-    [/離乳食/g, '離乳食 食べない 食事 偏食 取り分け 食育'],
-    [/食べない/g, '食べない 偏食 食事 食育 栄養'],
-    [/食事/g, '食事 食べ物 料理 栄養 食育'],
-    
-    // 遊び・学習関連
-    [/遊び/g, '遊び おもちゃ ゲーム 活動 楽しみ'],
-    [/勉強/g, '勉強 学習 宿題 教育 習い事'],
-    [/習い事/g, '習い事 教室 レッスン スキル'],
-    
-    // 子育て全般
-    [/子育て/g, '子育て 育児 親 ママ パパ 教育'],
-    [/子ども|子供/g, '子ども 子供 幼児 赤ちゃん 小学生'],
-    [/幼稚園/g, '幼稚園 保育園 園 入園 園生活'],
-    [/学校/g, '学校 小学校 中学校 高校 教育'],
-    
-    // 健康・安全関連
-    [/病気/g, '病気 体調 健康 医療 病院'],
-    [/怪我/g, '怪我 けが 事故 安全 危険'],
-    [/安全/g, '安全 危険 注意 気をつける 予防'],
-    
-    // 人間関係
-    [/友達/g, '友達 友だち 人間関係 仲良し コミュニケーション'],
-    [/家族/g, '家族 夫 妻 親 祖父母 兄弟'],
-  ];
-  let out = q;
-  for (const [re, add] of norms) {
-    if (re.test(q)) out += ' ' + add;
-  }
-  return out;
-}
-
-async function wpFallbackSearch(query: string, limit = 3) {
-  try {
-    const url = new URL('https://www.okaasan.net/wp-json/wp/v2/posts');
-    url.searchParams.set('search', query);
-    url.searchParams.set('per_page', String(limit));
-    url.searchParams.set('_embed', 'author');
-    const res = await fetch(url.toString());
-    if (!res.ok) return [];
-    const posts: any[] = await res.json();
-
-    const sanitize = (s: string) => (s || '').replace(/<[^>]*>/g, '').trim();
-    return posts.map(p => ({
-      url: p.link as string,
-      snippet: sanitize(p?.excerpt?.rendered || p?.title?.rendered || ''),
-    }));
-  } catch {
-    return [];
-  }
-}
 
 // JSDoc: クライアントの初期化
 const openai = new OpenAI({
@@ -465,32 +285,6 @@ function extractTheme(message: string): string | null {
   return null;
 }
 
-/**
- * @JSDoc
- * 【軽量版】ユーザーメッセージから主要キーワードを抽出する関数
- * @param q ユーザーメッセージ
- * @returns 抽出されたキーワードの配列
- */
-function extractKeyTerms(q: string): string[] {
-  // ひらがな・カタカナ・漢字・英数を単語風に抜く（簡易）
-  const terms = (q.replace(/[、。！？\s]/g,' ').match(/[A-Za-z0-9一-龥ぁ-んァ-ヶー]{2,}/g) || []);
-  // よくある汎用語は除去
-  const stop = ['こと','する','です','ます','レシピ','作り方','作る','について','教えて','どう','何','子ども','家族'];
-  const filtered = terms.filter(t => !stop.includes(t)).slice(0,6);
-  return Array.from(new Set(filtered));
-}
-
-/**
- * @JSDoc
- * 【軽量版】テキストにキーワードが含まれているかチェックする関数
- * @param text チェック対象のテキスト
- * @param terms キーワードの配列
- * @returns いずれかのキーワードが含まれているかどうか
- */
-function containsAny(text: string, terms: string[]) {
-  const t = text.toLowerCase();
-  return terms.some(k => t.includes(k.toLowerCase()));
-}
 
 /**
  * @JSDoc
@@ -499,13 +293,10 @@ function containsAny(text: string, terms: string[]) {
  * @returns 2択+自由入力の確認質問
  */
 async function askForClarification(q: string): Promise<string> {
-  // 例：「オニオングラタンスープの"レシピの手順"を知りたい？それとも"コツや代替材料"？」など、
-  // 2択+自由入力の問いかけにする
-  return [
-    'うまく近い記事が見つからなかった… 🙇',
-    '教えて：今回は「手順が知りたい」？ それとも「コツ/代替材料」？',
-    '（自由入力でもOKだよ）'
-  ].join('\n');
+  return buildConfirmPrompt(q, [
+    "A) もう少しレシピの基本が知りたい",
+    "B) 今日作れる代替案を提案してほしい"
+  ]);
 }
 
 /**
@@ -680,53 +471,16 @@ async function finalizeIntentWithContext(userMessage: string): Promise<UserInten
 async function handleInformationSeeking(participant: any, userMessage: string): Promise<string> {
   console.log('Handling information seeking intent...');
   try {
-    // 1st try: 元のクエリでベクトル検索
-    let queryText = userMessage;
-    const embeddingResponse = await openai.embeddings.create({
-      model: 'text-embedding-3-small',
-      input: queryText,
-    });
-    const queryEmbedding = embeddingResponse.data[0].embedding;
-
-    // 2. Supabase DBから関連情報を検索 (改善版)
-    const MAX_K = 3;
-    const MIN_SIM = 0.45; // 0.15 → 0.45 に引き上げ（まずはこれで様子見）
-
-    const { data: documents, error } = await supabaseAdmin.rpc('match_documents_arr', {
-      query_embedding: queryEmbedding,
-      match_count: 6,                // 8 → 6（一次候補）
-    });
-
-    if (error) throw new Error(`Supabase search error: ${error.message}`);
+    // 新しいRAG検索を使用
+    const hits = await searchArticles(userMessage);
     
-    let docs = documents ?? [];
-    console.log(`[RAG] raw_hits: ${docs.length}, topSim: ${docs[0]?.similarity || 0}`);
-
-    // 拡張クエリは無効化（横ズレを避けるため）
-    // const expanded = null; // expandJaQuery(userMessage) は無効化
-    
-    // 二次フィルタ（本文に主要語が含まれるか + 類似度）
-    const keywords = extractKeyTerms(userMessage);
-    const hardFiltered = docs.filter((d: any) => {
-      const hit = containsAny(d.content || '', keywords);
-      const okSim = (d.similarity ?? 0) >= MIN_SIM;
-      return hit && okSim;
-    });
-
-    const picked = (hardFiltered.length ? hardFiltered : docs).slice(0, MAX_K);
-    console.log(`[RAG] keywords: ${keywords.join(',')}, hardFiltered: ${hardFiltered.length}, picked: ${picked.length}`);
-
-    // picked に対して lazy-fill を回す直前
-    console.log('RAG_META_BEFORE', picked.map((p: any) => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
-
-    // ここまでで picked.length が0ならフォールバック
-    if (picked.length === 0) {
-      // 低確度：確認質問にフォールバック
-      return askForClarification(userMessage);
+    // 低確度の場合は確認質問にフォールバック
+    if (hits.length === 0) {
+      return buildConfirmPrompt(userMessage, [
+        "A) もう少しレシピの基本が知りたい",
+        "B) 今日作れる代替案を提案してほしい"
+      ]);
     }
-
-    const contextText = picked.map((d: any) => d.content).join('\n---\n');
-    const sourceUrls = Array.from(new Set(picked.map((d: any) => d.source_url)));
 
     const { lastUser, thread: recentThread, conversationFlow } = await getConversationContext(participant.id);
     
@@ -740,22 +494,8 @@ async function handleInformationSeeking(participant: any, userMessage: string): 
     const contextInfo = conversationFlow.isDeepConversation ? 
       `\n[会話の流れ]\n前回のテーマ: ${conversationFlow.lastTheme || '新しい話題'}\n会話の深さ: ${conversationFlow.messageCount}回のやり取り` : '';
     
-    const systemPrompt = `
-${SYSTEM_INFO_SEEKING}
-
-[最近の会話ログ]
-${recentThread}${contextInfo}
-
-[ルール]
-1) 前置きを短く、結論を先に述べる。
-2) 提供されたコンテキストを参考に、簡潔で実用的な回答をする。
-3) 箇条書きで要点を整理する。
-4) 数字や手順は簡潔に記載する。
-5) コンテキスト外は無理に答えない。
-6) 出力はプレーンテキスト。Markdown装飾は使わない。
-7) 箇条書きは日本語の点を使う。
-8) 参考記事は最後に「参考記事」として提示。
-`.trim();
+    const contextText = hits.map(h => h.chunk).join('\n---\n');
+    const systemPrompt = buildInfoPrompt(userMessage, hits.map(h => ({ title: h.title, url: h.url })));
 
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
@@ -769,13 +509,8 @@ ${recentThread}${contextInfo}
     const answer = completion.choices[0].message.content || 'すみません、うまくお答えできませんでした。';
     
     // 3件・1文理由の常時適用
-    const reasons = await makeOneSentenceReasons(
-      userMessage,
-      picked.map((d: any) => ({ url: d.source_url, snippet: (d.content || '').slice(0, 220) }))
-    );
-
-    const refs = picked.map((d: any, i: number) =>
-      `[${i+1}] ${reasons[i] || 'このテーマの理解に役立ちそう'}\n${d.source_url}`
+    const refs = hits.map((hit, i) =>
+      `[${i+1}] ${oneLineWhy(userMessage, hit)}\n${hit.url}`
     ).join('\n');
 
     return `${answer}\n\n— 参考記事 —\n${refs}`;
@@ -792,7 +527,7 @@ ${recentThread}${contextInfo}
  */
 export async function handleTextMessage(userId: string, text: string): Promise<string> {
   // バージョンログ（本番確認用）
-  console.log('[APP]', 'rev=', process.env.VERCEL_GIT_COMMIT_SHA?.slice(0,7));
+  console.log('[APP]', 'rev=', appRev());
   
   const participant = await findOrCreateParticipant(userId);
 
@@ -855,8 +590,7 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
 
     if (p.ask_stage === 2) {
       // ひとことメモ保存 → 完成 → slug 発行 → URL 返す
-      const { nanoid } = await import('nanoid');
-      const slug = p.page_slug || nanoid(12);
+      const slug = p.page_slug || slugify(p.caption || 'diary');
 
       await supabaseAdmin.from('media_entries')
         .update({ 
