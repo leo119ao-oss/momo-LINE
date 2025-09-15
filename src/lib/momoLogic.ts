@@ -379,14 +379,26 @@ async function getConversationContext(participantId: number) {
     .select('role, content, created_at')
     .eq('participant_id', participantId)
     .order('created_at', { ascending: false })
-    .limit(12); // より多くの会話履歴を取得
+    .limit(20); // より多くの会話履歴を取得
 
   const recent = (logs ?? []).reverse();
   const lastUser = [...recent].reverse().find(l => l.role === 'user')?.content ?? '';
-  const thread = recent.map(l => `${l.role === 'user' ? 'U' : 'AI'}: ${l.content}`).join('\n');
   
   // 会話の流れを分析
   const conversationFlow = analyzeConversationFlow(recent);
+  
+  // 過去の会話の要約を作成（長い場合）
+  let thread: string;
+  if (recent.length > 10) {
+    // 最新の5件と古い会話の要約
+    const latest = recent.slice(-5);
+    const older = recent.slice(0, -5);
+    const olderSummary = older.length > 0 ? 
+      `[過去の会話要約: ${older.length}件のやり取りがありました]` : '';
+    thread = olderSummary + '\n' + latest.map(l => `${l.role === 'user' ? 'U' : 'AI'}: ${l.content}`).join('\n');
+  } else {
+    thread = recent.map(l => `${l.role === 'user' ? 'U' : 'AI'}: ${l.content}`).join('\n');
+  }
   
   return { lastUser, thread, conversationFlow };
 }
@@ -527,6 +539,15 @@ async function detectUserIntent(userMessage: string): Promise<UserIntent> {
     '教えて', '方法', 'やり方', '知りたい', 'おすすめ', 'コツ', '解決', '対処法', '選び方',
     'どうすれば', 'どうしたら', '何を', 'どこで', 'いつ', 'なぜ', 'どうして', '調べて', '検索して'
   ];
+  
+  // 過去の会話に関する質問は内省モードで処理
+  const conversationKeywords = [
+    '今まで', '何の話', '話してた', '会話', '前回', 'さっき', '先ほど', '話した', '言った'
+  ];
+  
+  if (conversationKeywords.some(keyword => userMessage.includes(keyword))) {
+    return 'personal_reflection';
+  }
   
   // 明示的な質問記号または情報要求キーワードがある場合のみ情報探索
   const explicitInfoRegex = new RegExp(`[？\?]|(${explicitInfoKeywords.join('|')})`);
@@ -855,6 +876,10 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
   const intent = chooseMode(rawIntent, text);
   lastMode = intent;
   console.log(`[Intent] User message: "${text}" -> Raw: ${rawIntent} -> Final: ${intent}`);
+  
+  // デバッグ用：意図検出の詳細ログ
+  console.log(`[Debug] Intent detection - Text: "${text}", Raw: ${rawIntent}, Final: ${intent}`);
+  
   let aiMessage: string;
 
   if (intent === 'information_seeking') {
@@ -900,6 +925,7 @@ ${MOMO_VOICE}${profile}${conversationContext}
 
 [ルール]
 - 会話の流れを意識し、前回の内容に自然に繋げる。
+- 過去の会話について聞かれた場合は、具体的に振り返って答える。
 - 相づち→ねぎらい→一息つける提案を1つだけ。
 - 連続質問はしない。問いは最大1つ。
 - ユーザーの表現を少し言い換えて返す（ミラーリング）。
