@@ -1,7 +1,7 @@
 {
   "/_not-found/page": "app/_not-found/page.js",
-  "/api/cron/evening-journal/route": "app/api/cron/evening-journal/route.js",
   "/api/cron/daily-question/route": "app/api/cron/daily-question/route.js",
+  "/api/cron/evening-journal/route": "app/api/cron/evening-journal/route.js",
   "/api/cron/morning-reco/route": "app/api/cron/morning-reco/route.js",
   "/api/search/google/route": "app/api/search/google/route.js",
   "/register/page": "app/register/page.js",
