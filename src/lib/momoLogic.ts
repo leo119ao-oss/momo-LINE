@@ -110,6 +110,42 @@ export async function fillTitleAuthorIfMissing(hit: any) {
 }
 
 
+async function makeOneSentenceReasons(
+  userMessage: string,
+  items: { url: string; snippet: string }[]
+): Promise<string[]> {
+  const sys = `
+あなたは記事レコメンドの編集者です。各候補が「ユーザーの質問に対してなぜ有用か」を日本語で１文ずつ書きます。
+- 断定調は避け、「〜に役立ちそう」「〜のヒントがある」とやわらかく。
+- 具体語を1つ入れる（例: 年齢帯/具体アクティビティ/場面など）。
+- 出力は JSON 配列（文字列3要素のみ）。`.trim();
+
+  const list = items.map((it, i) =>
+    `[${i+1}] URL: ${it.url}\n抜粋: """${it.snippet.substring(0, 400)}"""`
+  ).join('\n');
+
+  const prompt = `質問: ${userMessage}\n候補:\n${list}\n\n上記に対応する３つの理由を JSON 配列で返してください。`;
+  try {
+    const resp = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
+      temperature: 0.2,
+      messages: [{ role: 'system', content: sys }, { role: 'user', content: prompt }],
+    });
+    const txt = resp.choices[0].message.content ?? '[]';
+    try {
+      const arr = JSON.parse(txt);
+      if (Array.isArray(arr) && arr.length) return arr.map(String).slice(0, items.length);
+    } catch {
+      // フォールバック：行分割
+      return txt.split('\n').map(s => s.replace(/^\s*[\[\(]?\d+[\]\).]\s*/, '').trim()).filter(Boolean).slice(0, items.length);
+    }
+  } catch (e) {
+    console.warn('REASON_GEN_FAIL', e);
+  }
+  // 最終フォールバック
+  return items.map(() => 'このテーマに関する実践的なヒントがまとまっています。');
+}
+
 function expandJaQuery(q: string) {
   const norms: Array<[RegExp, string]> = [
     // 天気・環境関連
@@ -159,22 +195,20 @@ function expandJaQuery(q: string) {
   return out;
 }
 
-async function wpFallbackSearch(query: string, limit = 5) {
+async function wpFallbackSearch(query: string, limit = 3) {
   try {
     const url = new URL('https://www.okaasan.net/wp-json/wp/v2/posts');
     url.searchParams.set('search', query);
     url.searchParams.set('per_page', String(limit));
-    url.searchParams.set('_embed', 'author'); // 著者名を埋め込む
-
-    const res = await fetch(url.toString(), { method: 'GET' });
+    url.searchParams.set('_embed', 'author');
+    const res = await fetch(url.toString());
     if (!res.ok) return [];
     const posts: any[] = await res.json();
 
-    const sanitize = (s: string) => s.replace(/<[^>]*>/g, '').trim();
+    const sanitize = (s: string) => (s || '').replace(/<[^>]*>/g, '').trim();
     return posts.map(p => ({
       url: p.link as string,
-      title: sanitize(p.title?.rendered ?? ''),
-      author: String(p?._embedded?.author?.[0]?.name ?? 'お母さん大学'),
+      snippet: sanitize(p?.excerpt?.rendered || p?.title?.rendered || ''),
     }));
   } catch {
     return [];
@@ -355,11 +389,11 @@ async function handleInformationSeeking(participant: any, userMessage: string): 
     // documents には similarity を含む前提（match_documents_arr）
     const MIN_SIM = 0.15; // NotebookLMレベルの自由度: より低い閾値で関連記事を取得
     const filtered = docs.filter((d: any) => (d.similarity ?? 0) >= MIN_SIM);
-    const picked = (filtered.length ? filtered : docs).slice(0, 5); // より多くの記事を返す
+    const picked = (filtered.length ? filtered : docs).slice(0, 3); // 3件固定
     console.log(`[RAG] after_filter: ${filtered.length}, picked: ${picked.length}`);
 
     // picked に対して lazy-fill を回す直前
-    console.log('RAG_META_BEFORE', picked.map(p => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
+    console.log('RAG_META_BEFORE', picked.map((p: any) => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
 
     // タイトルと著者名を遅延取得
     for (let i = 0; i < picked.length; i++) {
@@ -367,14 +401,15 @@ async function handleInformationSeeking(participant: any, userMessage: string): 
     }
 
     // picked に対して lazy-fill を回した直後
-    console.log('RAG_META_AFTER', picked.map(p => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
+    console.log('RAG_META_AFTER', picked.map((p: any) => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
 
     // ここまでで picked.length が0ならフォールバック
     if (picked.length === 0) {
-      const wp = await wpFallbackSearch(userMessage, 5);
+      const wp = await wpFallbackSearch(userMessage, 3);
       if (wp.length) {
-        const list = wp.map((p, i) => `[${i+1}] ${p.title} — ${p.author}\n${p.url}`).join('\n');
-        return `手元のベクトル検索では直接ヒットがなかったけど、近いテーマっぽい記事を見つけたよ。\n\n— 参考候補 —\n${list}`;
+        const reasons = await makeOneSentenceReasons(userMessage, wp);
+        const list = wp.map((p, i) => `[${i+1}] ${reasons[i]}\n${p.url}`).join('\n');
+        return `手元のベクトル検索では直接ヒットがなかったけど、近いテーマの記事を見つけたよ。\n\n— 参考記事 —\n${list}`;
       }
       return 'ごめん、いま手元のデータからは関連が拾えなかった… もう少し違う聞き方も試してみて？';
     }
@@ -408,9 +443,16 @@ ${recentThread}
 
     const answer = completion.choices[0].message.content || 'すみません、うまくお答えできませんでした。';
     
-    // 引用の体裁を整える（番号＋タイトル — 著者＋URL）
+    // 理由を生成（RAGでもWPフォールバックでも共通利用）
+    const reasonInputs = picked.map((d: any) => ({
+      url: d.source_url,
+      snippet: (d.content ?? '').slice(0, 500)
+    }));
+    const reasons = await makeOneSentenceReasons(userMessage, reasonInputs);
+
+    // 出力テキスト（タイトルは出さない）
     const refs = picked.map((d: any, i: number) =>
-      `[${i+1}] ${d.title ?? '(タイトル未取得)'} — ${d.author_name ?? 'お母さん大学'}\n${d.source_url}`
+      `[${i+1}] ${reasons[i] || 'このテーマの理解に役立ちそうです。'}\n${d.source_url}`
     ).join('\n');
     return `${answer}\n\n— 参考記事 —\n${refs}`;
 
