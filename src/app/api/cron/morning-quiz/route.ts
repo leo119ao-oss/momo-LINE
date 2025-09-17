@@ -4,17 +4,58 @@ import { lineClient } from '@/lib/lineClient';
 import { generateQuizFromAutoSearch, generateShortHook, logQuizAction } from '@/lib/quiz';
 import type { Message, FlexMessage, FlexContainer } from '@line/bot-sdk';
 
+// ---- 追加：Quizデータのゆらぎを吸収するヘルパー --------------------
+type QuizDataLike = {
+  id?: string;
+  // タイトル候補
+  title?: string;
+  quiz_title?: string;
+  article_title?: string;
+  headline?: string;
+  // 質問文候補
+  question?: string;
+  question_text?: string;
+  prompt?: string;
+  body?: string;
+  // 記事URL候補
+  article_url?: string;
+  articleUrl?: string;
+  url?: string;
+};
+
+function pickFirstString(...vals: Array<unknown>): string | undefined {
+  for (const v of vals) {
+    if (typeof v === 'string' && v.trim().length > 0) return v;
+  }
+  return undefined;
+}
+
+function resolveTeaserFields(quiz: QuizDataLike): {
+  title: string;
+  question: string;
+  article_url: string;
+} {
+  const title =
+    pickFirstString(quiz.title, quiz.quiz_title, quiz.article_title, quiz.headline) ??
+    '今日の1分クイズ';
+  const question =
+    pickFirstString(quiz.question, quiz.question_text, quiz.prompt, quiz.body) ??
+    '記事を読んで答えを考えてみよう！';
+  const article_url =
+    pickFirstString(quiz.article_url, quiz.articleUrl, quiz.url) ??
+    'https://www.okaasan.net/hahagokoro/';
+
+  return { title, question, article_url };
+}
+
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
  * Flexメッセージを厳密な型で構築
  */
-function buildTeaserFlex(quiz: {
-  title: string;
-  question: string;
-  article_url: string;
-}): FlexMessage {
+function buildTeaserFlex(quiz: QuizDataLike): FlexMessage {
+  const { title, question, article_url } = resolveTeaserFields(quiz);
   const contents: FlexContainer = {
     type: 'bubble',
     body: {
@@ -31,14 +72,14 @@ function buildTeaserFlex(quiz: {
         },
         {
           type: 'text',
-          text: quiz.title,
+          text: title,
           size: 'lg',
           weight: 'bold',
           wrap: true
         },
         {
           type: 'text',
-          text: quiz.question,
+          text: question,
           size: 'md',
           wrap: true
         },
@@ -48,7 +89,7 @@ function buildTeaserFlex(quiz: {
           action: {
             type: 'uri',
             label: 'ヒントを見る',
-            uri: quiz.article_url
+            uri: article_url
           }
         }
       ]
