@@ -4,6 +4,14 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
+// TypeScriptで安全に数値化するユーティリティ
+function toNumber(value: string | number | null | undefined): number {
+  if (typeof value === 'number') return value;
+  if (value == null) return 0;
+  const n = Number(value); // string/number どちらでもOK
+  return Number.isFinite(n) ? n : 0;
+}
+
 export async function GET(request: NextRequest) {
   try {
     // 認証チェック（必要に応じて）
@@ -34,9 +42,9 @@ export async function GET(request: NextRequest) {
       total_open: quizStats.filter(log => log.action === 'open').length,
     };
 
-    // 率を計算
-    const tap_choice_rate = stats.total_sent > 0 ? (stats.total_tap_choice / stats.total_sent * 100).toFixed(1) : 0;
-    const open_rate = stats.total_sent > 0 ? (stats.total_open / stats.total_sent * 100).toFixed(1) : 0;
+    // 率を計算（パーセンテージとして）
+    const tap_choice_rate = stats.total_sent > 0 ? (stats.total_tap_choice / stats.total_sent * 100) : 0;
+    const open_rate = stats.total_sent > 0 ? (stats.total_open / stats.total_sent * 100) : 0;
 
     // 日別統計
     const dailyStats: any = {};
@@ -64,8 +72,8 @@ export async function GET(request: NextRequest) {
         total_sent: stats.total_sent,
         total_tap_choice: stats.total_tap_choice,
         total_open: stats.total_open,
-        tap_choice_rate: parseFloat(tap_choice_rate),
-        open_rate: parseFloat(open_rate)
+        tap_choice_rate: toNumber(tap_choice_rate),
+        open_rate: toNumber(open_rate)
       },
       daily_stats: dailyStats,
       quiz_stats: quizStatsByQuiz
