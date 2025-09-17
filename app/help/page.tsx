@@ -1,17 +1,59 @@
+import LiffLayout from "@/components/LiffLayout";
+import LiffCard from "@/components/LiffCard";
+
 export default function Page(){
   return (
-    <main style={{maxWidth:560, margin:"0 auto", padding:"20px 16px"}}>
-      <h1 style={{fontSize:22, fontWeight:700}}>ヘルプ / よくある質問</h1>
-      <details style={dl}><summary>これは医療ですか？</summary>
-        <p>いいえ。これは生活を軽くするための研究・サービスです。つらい時は各地域の相談窓口をご利用ください。</p>
-      </details>
-      <details style={dl}><summary>毎日できない日があっても大丈夫？</summary>
-        <p>大丈夫です。できる日に60秒だけでOKです。</p>
-      </details>
-      <details style={dl}><summary>データの扱いは？</summary>
-        <p>研究と改善のために活用します。いつでも中止・削除のご希望を承ります。</p>
-      </details>
-    </main>
+    <LiffLayout title="ヘルプ / よくある質問">
+      <LiffCard>
+        <details style={styles.details}>
+          <summary style={styles.summary}>これは医療ですか？</summary>
+          <p style={styles.answer}>
+            いいえ。これは生活を軽くするための研究・サービスです。つらい時は各地域の相談窓口をご利用ください。
+          </p>
+        </details>
+      </LiffCard>
+
+      <LiffCard>
+        <details style={styles.details}>
+          <summary style={styles.summary}>毎日できない日があっても大丈夫？</summary>
+          <p style={styles.answer}>
+            大丈夫です。できる日に60秒だけでOKです。
+          </p>
+        </details>
+      </LiffCard>
+
+      <LiffCard>
+        <details style={styles.details}>
+          <summary style={styles.summary}>データの扱いは？</summary>
+          <p style={styles.answer}>
+            研究と改善のために活用します。いつでも中止・削除のご希望を承ります。
+          </p>
+        </details>
+      </LiffCard>
+    </LiffLayout>
   );
 }
-const dl:any = {border:"1px solid #eee", borderRadius:10, padding:"10px 12px", margin:"10px 0"};
+
+const styles = {
+  details: {
+    border: '1px solid #E5E7EB',
+    borderRadius: '12px',
+    padding: '16px',
+    margin: '0 0 12px 0',
+    backgroundColor: '#FFFFFF',
+  },
+  summary: {
+    fontSize: '16px',
+    fontWeight: '600',
+    color: '#374151',
+    cursor: 'pointer',
+    marginBottom: '8px',
+    listStyle: 'none',
+  },
+  answer: {
+    fontSize: '14px',
+    color: '#6B7280',
+    lineHeight: '1.5',
+    margin: '8px 0 0 0',
+  },
+};

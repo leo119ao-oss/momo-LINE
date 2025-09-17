@@ -1,6 +1,9 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import LiffLayout from '@/components/LiffLayout';
+import LiffCard from '@/components/LiffCard';
+import LiffButton from '@/components/LiffButton';
 // import type { Liff } from '@line/liff'; //
 // パッケージが見つからないエラーを解消するため、CDNから直接読み込む方式に変更します。
 
@@ -107,48 +110,48 @@ export default function RegisterPage() {
   };
 
   return (
-    <div style={{ padding: '20px', fontFamily: 'sans-serif', maxWidth: '600px', margin: 'auto', textAlign: 'center' }}>
-      <h1 style={{ color: '#333' }}>Momo 研究参加者登録</h1>
-      <p style={{ color: '#555', minHeight: '40px' }}>{status}</p>
-      
+    <LiffLayout 
+      title="Momo 研究参加者登録" 
+      subtitle={status}
+      error={error}
+      isLoading={!lineId && !error}
+    >
       {!isRegistered && lineId && !error && (
-        <div style={{ marginTop: '30px' }}>
-          <button onClick={() => handleRegister('A')} style={buttonStyle}>
+        <LiffCard>
+          <div style={{ marginBottom: '20px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#374151', marginBottom: '12px' }}>
+              あなたのアーキタイプを選択してください
+            </h3>
+          </div>
+          
+          <LiffButton 
+            onClick={() => handleRegister('A')} 
+            variant="primary" 
+            size="large" 
+            fullWidth
+            style={{ marginBottom: '12px' }}
+          >
             私はアーキタイプAです
-            <small style={smallTextStyle}>（書くことを通じた自己表現を実践している）</small>
-          </button>
-          <button onClick={() => handleRegister('B')} style={buttonStyle}>
+          </LiffButton>
+          <p style={{ fontSize: '12px', color: '#6B7280', marginBottom: '20px', textAlign: 'center' }}>
+            （書くことを通じた自己表現を実践している）
+          </p>
+          
+          <LiffButton 
+            onClick={() => handleRegister('B')} 
+            variant="secondary" 
+            size="large" 
+            fullWidth
+          >
             私はアーキタイプBです
-            <small style={smallTextStyle}>（特定の表現活動には従事していない）</small>
-          </button>
-        </div>
+          </LiffButton>
+          <p style={{ fontSize: '12px', color: '#6B7280', marginTop: '12px', textAlign: 'center' }}>
+            （特定の表現活動には従事していない）
+          </p>
+        </LiffCard>
       )}
-
-      {error && <p style={{ color: 'red', marginTop: '20px' }}>エラー: {error}</p>}
-    </div>
+    </LiffLayout>
   );
 }
 
-const buttonStyle: React.CSSProperties = {
-  display: 'block',
-  width: '100%',
-  padding: '20px',
-  margin: '15px 0',
-  fontSize: '18px',
-  fontWeight: 'bold',
-  cursor: 'pointer',
-  border: 'none',
-  borderRadius: '8px',
-  backgroundColor: '#f0f0f0',
-  color: '#333',
-  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-};
-
-const smallTextStyle: React.CSSProperties = {
-    display: 'block',
-    marginTop: '5px',
-    fontSize: '12px',
-    fontWeight: 'normal',
-    color: '#666',
-};
 

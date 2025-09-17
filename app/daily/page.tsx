@@ -1,6 +1,13 @@
 "use client";
 import { useEffect, useState } from "react";
 import { ensureLiff, getLineUserId } from "@/lib/liffClient";
+import LiffLayout from "@/components/LiffLayout";
+import LiffCard from "@/components/LiffCard";
+import LiffButton from "@/components/LiffButton";
+import LiffField from "@/components/LiffField";
+import LiffSlider from "@/components/LiffSlider";
+import LiffChips from "@/components/LiffChips";
+import LiffInput from "@/components/LiffInput";
 import RagWidget from "./RagWidget";
 
 export default function Page() {
@@ -30,77 +37,89 @@ export default function Page() {
     }
   }
 
-  if (!uid) return <Shell><p>読み込み中…</p></Shell>;
+  if (!uid) {
+    return (
+      <LiffLayout 
+        title="今日の1分" 
+        subtitle="読み込み中..." 
+        isLoading={true}
+      />
+    );
+  }
 
   return (
-    <Shell>
-      <h1 style={h1}>今日の1分</h1>
-      <p style={{margin:"4px 0 12px", color:"#666"}}>スライダーを動かして、最後に一言。<b>60秒で終わります。</b></p>
+    <LiffLayout 
+      title="今日の1分" 
+      subtitle="スライダーを動かして、最後に一言。60秒で終わります。"
+    >
+      <LiffCard>
+        <LiffField label="気分">
+          <LiffSlider 
+            label="気分" 
+            value={mood} 
+            onChange={setMood} 
+            leftLabel="低い" 
+            rightLabel="高い" 
+          />
+        </LiffField>
 
-      <div style={card}>
-        <Slider label="気分" value={mood} onChange={setMood} left="低い" right="高い" />
-        <Slider label="負担" value={load} onChange={setLoad} left="軽い" right="重い" />
-        <Slider label="自信" value={eff} onChange={setEff} left="低い" right="高い" />
+        <LiffField label="負担">
+          <LiffSlider 
+            label="負担" 
+            value={load} 
+            onChange={setLoad} 
+            leftLabel="軽い" 
+            rightLabel="重い" 
+          />
+        </LiffField>
 
-        <Field label="今日のトピック（選択）">
-          <Chips options={["家事","育児","仕事","体調","自分時間"]} value={choice} onChange={setChoice} />
-        </Field>
+        <LiffField label="自信">
+          <LiffSlider 
+            label="自信" 
+            value={eff} 
+            onChange={setEff} 
+            leftLabel="低い" 
+            rightLabel="高い" 
+          />
+        </LiffField>
 
-        <Field label="ひとこと（80字まで）">
-          <textarea value={memo} onChange={e=>setMemo(e.target.value.slice(0,80))}
-                    placeholder="例：寝かしつけで助けてもらえて楽だった"
-                    style={ta}/>
-          <div style={{textAlign:"right", fontSize:12, color:"#999"}}>{memo.length}/80</div>
-        </Field>
+        <LiffField label="今日のトピック">
+          <LiffChips 
+            options={["家事","育児","仕事","体調","自分時間"]} 
+            value={choice} 
+            onChange={setChoice} 
+          />
+        </LiffField>
 
-        <button onClick={submit} style={btn}>送信する</button>
-      </div>
+        <LiffField label="ひとこと" description="80字まで入力できます">
+          <LiffInput
+            value={memo}
+            onChange={(value) => setMemo(value.slice(0, 80))}
+            placeholder="例：寝かしつけで助けてもらえて楽だった"
+            maxLength={80}
+            multiline
+            rows={3}
+          />
+        </LiffField>
 
-      <p style={{fontSize:12, color:"#666"}}>※必要な時だけ、後続で「確認の質問」や「記事3件」が出ます。</p>
+        <LiffButton 
+          onClick={submit} 
+          variant="primary" 
+          size="large" 
+          fullWidth
+        >
+          送信する
+        </LiffButton>
+      </LiffCard>
+
+      <LiffCard variant="accent" padding="small">
+        <p style={{ fontSize: '12px', color: '#666', margin: 0, textAlign: 'center' }}>
+          ※必要な時だけ、後続で「確認の質問」や「記事3件」が出ます。
+        </p>
+      </LiffCard>
       
       <RagWidget contact={uid}/>
-    </Shell>
+    </LiffLayout>
   );
 }
 
-function Shell({children}:{children:any}) {
-  return <main style={{maxWidth:560, margin:"0 auto", padding:"20px 16px"}}>
-    {children}</main>;
-}
-
-function Field({label, children}:{label:string, children:any}) {
-  return <div style={{margin:"12px 0"}}>
-    <div style={{fontSize:13, color:"#444", marginBottom:6}}>{label}</div>
-    {children}
-  </div>;
-}
-
-function Slider({label, value, onChange, left, right}:{label:string; value:number; onChange:(n:number)=>void; left:string; right:string;}) {
-  return <div style={{margin:"12px 0"}}>
-    <div style={{display:"flex", justifyContent:"space-between", fontSize:13, color:"#444"}}>
-      <span>{label}</span><span>{value}</span>
-    </div>
-    <input type="range" min={0} max={10} value={value}
-           onChange={e=>onChange(Number(e.target.value))}
-           style={{width:"100%"}} />
-    <div style={{display:"flex", justifyContent:"space-between", fontSize:12, color:"#888"}}>
-      <span>{left}</span><span>{right}</span>
-    </div>
-  </div>;
-}
-
-function Chips({options,value,onChange}:{options:string[]; value:string; onChange:(v:string)=>void}) {
-  return <div style={{display:"flex", gap:8, flexWrap:"wrap"}}>
-    {options.map(o=><button key={o} onClick={()=>onChange(o)}
-      style={{padding:"6px 10px", borderRadius:999, border:"1px solid #ddd",
-              background: value===o ? "#FFEEF2" : "#fff", color: value===o ? "#D33" : "#333"}}>
-      {o}
-    </button>)}
-  </div>;
-}
-
-const banner = {background:"#FFF0F4", color:"#FF6F91", padding:"8px 12px", borderRadius:10, fontSize:12, textAlign:"center" as const, marginBottom:12};
-const h1 = {fontSize:22, fontWeight:700, margin:"4px 0 8px"};
-const card = {background:"#fff", border:"1px solid #eee", borderRadius:12, padding:16};
-const btn:any = {marginTop:8, width:"100%", background:"#FF8FA3", color:"#fff", border:"none", padding:"12px", borderRadius:10, fontWeight:700, fontSize:16};
-const ta:any = {width:"100%", height:80, border:"1px solid #ddd", borderRadius:8, padding:"10px 12px", fontSize:16};

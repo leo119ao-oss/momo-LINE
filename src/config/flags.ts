@@ -3,5 +3,6 @@ export const flags = {
   ragTighten: true,
   confirmOnLowConf: true,
   recCard3Why1: true,
-  diaryFlowV1: true
+  diaryFlowV1: true,
+  empathyStyle: "reflective" as "reflective" | "friendly"
 } as const;

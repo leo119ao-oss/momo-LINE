@@ -1,6 +1,12 @@
 "use client";
 import { useEffect, useState } from "react";
 import { ensureLiff, getLineUserId } from "@/lib/liffClient";
+import LiffLayout from "@/components/LiffLayout";
+import LiffCard from "@/components/LiffCard";
+import LiffButton from "@/components/LiffButton";
+import LiffField from "@/components/LiffField";
+import LiffInput from "@/components/LiffInput";
+import LiffChips from "@/components/LiffChips";
 
 export default function Page(){
   const [uid, setUid] = useState<string>();
@@ -14,7 +20,16 @@ export default function Page(){
   const [doneUrl, setDoneUrl] = useState<string>("");
 
   useEffect(()=>{ (async()=>{ await ensureLiff(process.env.NEXT_PUBLIC_LIFF_DIARY_ID!); setUid(await getLineUserId()); })(); },[]);
-  if (!uid) return <Shell><p>読み込み中…</p></Shell>;
+  
+  if (!uid) {
+    return (
+      <LiffLayout 
+        title="家族カード（絵日記）" 
+        subtitle="読み込み中..." 
+        isLoading={true}
+      />
+    );
+  }
 
   async function onUpload() {
     if (!file || !uid) return;
@@ -35,48 +50,112 @@ export default function Page(){
   }
 
   return (
-    <Shell>
-      <h1 style={h1}>家族カード（絵日記）</h1>
-
+    <LiffLayout title="家族カード（絵日記）" subtitle="写真をアップロードして家族に送るカードを作成">
       {!entryId && (
-        <div style={card}>
-          <input type="file" accept="image/*" onChange={e=> setFile(e.target.files?.[0]||null)} />
-          <button onClick={onUpload} disabled={!file || uploading} style={btn}>{uploading ? "アップロード中…" : "アップロード"}</button>
-        </div>
+        <LiffCard>
+          <LiffField label="写真を選択" description="画像ファイルを選択してください">
+            <input 
+              type="file" 
+              accept="image/*" 
+              onChange={e => setFile(e.target.files?.[0] || null)}
+              style={{
+                width: '100%',
+                padding: '12px',
+                border: '2px dashed #E5E7EB',
+                borderRadius: '12px',
+                backgroundColor: '#FAFAFA',
+                fontSize: '16px'
+              }}
+            />
+          </LiffField>
+          
+          <LiffButton 
+            onClick={onUpload} 
+            disabled={!file || uploading} 
+            variant="primary" 
+            size="large" 
+            fullWidth
+          >
+            {uploading ? "アップロード中…" : "アップロード"}
+          </LiffButton>
+        </LiffCard>
       )}
 
       {entryId && !doneUrl && (
-        <div style={card}>
-          {preview && <img src={preview} alt="" style={{width:"100%", borderRadius:12, marginBottom:10}}/>}
-          <div style={{fontSize:13, color:"#444", marginBottom:6}}>キャプション候補（自由入力もOK）</div>
-          <div style={{display:"flex", gap:8, flexWrap:"wrap", marginBottom:8}}>
-            {suggested.map(s => <button key={s} onClick={()=> setTitle(s)} style={{padding:"6px 10px", borderRadius:999, border:"1px solid #ddd", background: title===s ? "#FFEEF2" : "#fff"}}>{s}</button>)}
-          </div>
-          <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="キャプションを入力" style={inp}/>
-          <div style={{marginTop:10}}>
-            <div style={{fontSize:13, color:"#444", marginBottom:6}}>一言メモ（任意）</div>
-            <textarea value={note} onChange={e=>setNote(e.target.value.slice(0,80))} placeholder="例：寝かしつけ、ありがとう！" style={ta}/>
-            <div style={{textAlign:"right", fontSize:12, color:"#999"}}>{note.length}/80</div>
-          </div>
-          <button onClick={onFinalize} disabled={!title} style={btn}>カードを作る</button>
-        </div>
+        <LiffCard>
+          {preview && (
+            <img 
+              src={preview} 
+              alt="プレビュー" 
+              style={{
+                width: '100%', 
+                borderRadius: '16px', 
+                marginBottom: '16px',
+                boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'
+              }}
+            />
+          )}
+          
+          <LiffField label="キャプション" description="候補から選択するか、自由に入力してください">
+            <LiffChips 
+              options={suggested} 
+              value={title} 
+              onChange={setTitle}
+              variant="compact"
+            />
+            <LiffInput
+              value={title}
+              onChange={setTitle}
+              placeholder="キャプションを入力"
+              style={{ marginTop: '8px' }}
+            />
+          </LiffField>
+
+          <LiffField label="一言メモ" description="任意で追加できます（80字まで）">
+            <LiffInput
+              value={note}
+              onChange={(value) => setNote(value.slice(0, 80))}
+              placeholder="例：寝かしつけ、ありがとう！"
+              maxLength={80}
+              multiline
+              rows={3}
+            />
+          </LiffField>
+
+          <LiffButton 
+            onClick={onFinalize} 
+            disabled={!title} 
+            variant="primary" 
+            size="large" 
+            fullWidth
+          >
+            カードを作る
+          </LiffButton>
+        </LiffCard>
       )}
 
       {doneUrl && (
-        <div style={card}>
-          <p>カードができました。</p>
-          <a href={doneUrl} style={cta}>カードを開く（共有用URL）</a>
-        </div>
+        <LiffCard variant="accent">
+          <div style={{ textAlign: 'center', padding: '20px' }}>
+            <div style={{ fontSize: '48px', marginBottom: '16px' }}>🎉</div>
+            <h3 style={{ fontSize: '18px', fontWeight: '600', marginBottom: '8px' }}>
+              カードができました！
+            </h3>
+            <p style={{ fontSize: '14px', color: '#666', marginBottom: '16px' }}>
+              家族と共有できるURLが生成されました
+            </p>
+            <LiffButton 
+              onClick={() => window.open(doneUrl, '_blank')}
+              variant="primary" 
+              size="large" 
+              fullWidth
+            >
+              カードを開く
+            </LiffButton>
+          </div>
+        </LiffCard>
       )}
-    </Shell>
+    </LiffLayout>
   );
 }
 
-function Shell({children}:{children:any}){ return <main style={{maxWidth:560, margin:"0 auto", padding:"20px 16px"}}>{children}</main> }
-const banner = {background:"#FFF0F4", color:"#FF6F91", padding:"8px 12px", borderRadius:10, fontSize:12, textAlign:"center" as const, marginBottom:12};
-const h1 = {fontSize:22, fontWeight:700, margin:"4px 0 8px"};
-const card = {background:"#fff", border:"1px solid #eee", borderRadius:12, padding:16, marginBottom:12};
-const btn:any = {marginTop:8, width:"100%", background:"#FF8FA3", color:"#fff", border:"none", padding:"12px", borderRadius:10, fontWeight:700, fontSize:16};
-const ta:any = {width:"100%", height:80, border:"1px solid #ddd", borderRadius:8, padding:"10px 12px", fontSize:16};
-const inp:any = {width:"100%", border:"1px solid #ddd", borderRadius:8, padding:"10px 12px", fontSize:16};
-const cta:any = {display:"inline-block", padding:"10px 12px", borderRadius:10, border:"1px solid #eee", background:"#F7F7F7", textDecoration:"none", color:"#333"};
