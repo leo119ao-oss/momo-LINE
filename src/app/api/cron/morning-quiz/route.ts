@@ -2,51 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { lineClient } from '@/lib/lineClient';
 import { generateQuizFromAutoSearch, generateShortHook, logQuizAction } from '@/lib/quiz';
-import type { Message, FlexMessage, FlexContainer } from '@line/bot-sdk';
-
-// ---- 追加：Quizデータのゆらぎを吸収するヘルパー --------------------
-type QuizDataLike = {
-  id?: string;
-  // タイトル候補
-  title?: string;
-  quiz_title?: string;
-  article_title?: string;
-  headline?: string;
-  // 質問文候補
-  question?: string;
-  question_text?: string;
-  prompt?: string;
-  body?: string;
-  // 記事URL候補
-  article_url?: string;
-  articleUrl?: string;
-  url?: string;
-};
-
-function pickFirstString(...vals: Array<unknown>): string | undefined {
-  for (const v of vals) {
-    if (typeof v === 'string' && v.trim().length > 0) return v;
-  }
-  return undefined;
-}
-
-function resolveTeaserFields(quiz: QuizDataLike): {
-  title: string;
-  question: string;
-  article_url: string;
-} {
-  const title =
-    pickFirstString(quiz.title, quiz.quiz_title, quiz.article_title, quiz.headline) ??
-    '今日の1分クイズ';
-  const question =
-    pickFirstString(quiz.question, quiz.question_text, quiz.prompt, quiz.body) ??
-    '記事を読んで答えを考えてみよう！';
-  const article_url =
-    pickFirstString(quiz.article_url, quiz.articleUrl, quiz.url) ??
-    'https://www.okaasan.net/hahagokoro/';
-
-  return { title, question, article_url };
-}
+import { resolveTeaserFields, type QuizDataLike } from '@/lib/quiz';
+import { buildQuizFlex } from '@/lib/line';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
@@ -54,53 +11,9 @@ export const runtime = 'nodejs';
 /**
  * Flexメッセージを厳密な型で構築
  */
-function buildTeaserFlex(quiz: QuizDataLike): FlexMessage {
+function buildTeaserFlex(quiz: QuizDataLike) {
   const { title, question, article_url } = resolveTeaserFields(quiz);
-  const contents: FlexContainer = {
-    type: 'bubble',
-    body: {
-      type: 'box',
-      layout: 'vertical',
-      spacing: 'md',
-      contents: [
-        {
-          type: 'text',
-          text: '今日の1分クイズ',
-          size: 'sm',
-          weight: 'bold',
-          color: '#888888'
-        },
-        {
-          type: 'text',
-          text: title,
-          size: 'lg',
-          weight: 'bold',
-          wrap: true
-        },
-        {
-          type: 'text',
-          text: question,
-          size: 'md',
-          wrap: true
-        },
-        {
-          type: 'button',
-          style: 'primary',
-          action: {
-            type: 'uri',
-            label: 'ヒントを見る',
-            uri: article_url
-          }
-        }
-      ]
-    }
-  };
-
-  return {
-    type: 'flex', // ← リテラル型 "flex" が必須
-    altText: '今日の1分クイズのお知らせ',
-    contents
-  };
+  return buildQuizFlex({ title, question, article_url });
 }
 
 export async function GET(request: NextRequest) {

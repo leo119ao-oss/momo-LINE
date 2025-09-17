@@ -5,7 +5,6 @@ import LiffLayout from "@/components/LiffLayout";
 import LiffCard from "@/components/LiffCard";
 import LiffButton from "@/components/LiffButton";
 import LiffField from "@/components/LiffField";
-import LiffInput from "@/components/LiffInput";
 
 export default function Page() {
   const [uid, setUid] = useState<string>();
