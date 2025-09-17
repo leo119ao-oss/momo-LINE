@@ -1,16 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { toNumber } from '@/lib/number';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
-// TypeScriptで安全に数値化するユーティリティ
-function toNumber(value: string | number | null | undefined): number {
-  if (typeof value === 'number') return value;
-  if (value == null) return 0;
-  const n = Number(value); // string/number どちらでもOK
-  return Number.isFinite(n) ? n : 0;
-}
 
 export async function GET(request: NextRequest) {
   try {

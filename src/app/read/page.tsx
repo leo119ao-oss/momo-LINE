@@ -36,10 +36,10 @@ export default async function ReadPage({ searchParams }: PageProps) {
     if (picked !== undefined) {
       // 選択肢をタップした場合
       const choiceIndex = parseInt(picked);
-      await logQuizAction(participantId, parseInt(quizId), 'tap_choice', choiceIndex, quiz.article_url);
+      await logQuizAction(participantId, parseInt(quizId, 10), 'tap_choice', choiceIndex, quiz.article_url);
     } else {
       // 記事ボタンを直接タップした場合
-      await logQuizAction(participantId, parseInt(quizId), 'open', undefined, quiz.article_url);
+      await logQuizAction(participantId, parseInt(quizId, 10), 'open', undefined, quiz.article_url);
     }
 
     // 記事URLへリダイレクト
