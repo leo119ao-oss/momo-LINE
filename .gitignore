@@ -52,6 +52,7 @@ typings/
 # 出力ディレクトリ
 dist/
 build/
+.next/
 
 # 一時ファイル
 .tmp/
