@@ -52,7 +52,10 @@ typings/
 # 出力ディレクトリ
 dist/
 build/
+
+# Vercel/Next.js build outputs（リポジトリに含めない）
 .next/
+.vercel/output/
 
 # 一時ファイル
 .tmp/

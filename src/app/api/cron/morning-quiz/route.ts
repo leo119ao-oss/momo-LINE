@@ -1,10 +1,66 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { lineClient } from '@/lib/lineClient';
-import { generateQuizFromAutoSearch, generateShortHook, buildTeaserFlex, logQuizAction } from '@/lib/quiz';
+import { generateQuizFromAutoSearch, generateShortHook, logQuizAction } from '@/lib/quiz';
+import type { Message, FlexMessage, FlexContainer } from '@line/bot-sdk';
 
 export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
+
+/**
+ * Flexメッセージを厳密な型で構築
+ */
+function buildTeaserFlex(quiz: {
+  title: string;
+  question: string;
+  article_url: string;
+}): FlexMessage {
+  const contents: FlexContainer = {
+    type: 'bubble',
+    body: {
+      type: 'box',
+      layout: 'vertical',
+      spacing: 'md',
+      contents: [
+        {
+          type: 'text',
+          text: '今日の1分クイズ',
+          size: 'sm',
+          weight: 'bold',
+          color: '#888888'
+        },
+        {
+          type: 'text',
+          text: quiz.title,
+          size: 'lg',
+          weight: 'bold',
+          wrap: true
+        },
+        {
+          type: 'text',
+          text: quiz.question,
+          size: 'md',
+          wrap: true
+        },
+        {
+          type: 'button',
+          style: 'primary',
+          action: {
+            type: 'uri',
+            label: 'ヒントを見る',
+            uri: quiz.article_url
+          }
+        }
+      ]
+    }
+  };
+
+  return {
+    type: 'flex', // ← リテラル型 "flex" が必須
+    altText: '今日の1分クイズのお知らせ',
+    contents
+  };
+}
 
 export async function GET(request: NextRequest) {
   // 認証
