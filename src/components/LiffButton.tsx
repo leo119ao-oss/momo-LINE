@@ -8,6 +8,7 @@ interface LiffButtonProps {
   disabled?: boolean;
   fullWidth?: boolean;
   type?: 'button' | 'submit' | 'reset';
+  style?: React.CSSProperties;
 }
 
 export default function LiffButton({
@@ -17,7 +18,8 @@ export default function LiffButton({
   size = 'medium',
   disabled = false,
   fullWidth = false,
-  type = 'button'
+  type = 'button',
+  style
 }: LiffButtonProps) {
   const buttonStyles = {
     ...styles.button,
@@ -25,6 +27,7 @@ export default function LiffButton({
     ...styles.size[size],
     ...(fullWidth && styles.fullWidth),
     ...(disabled && styles.disabled),
+    ...style,
   };
 
   return (

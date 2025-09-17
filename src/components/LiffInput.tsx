@@ -8,6 +8,7 @@ interface LiffInputProps {
   multiline?: boolean;
   rows?: number;
   type?: 'text' | 'email' | 'password';
+  style?: React.CSSProperties;
 }
 
 export default function LiffInput({
@@ -17,16 +18,18 @@ export default function LiffInput({
   maxLength,
   multiline = false,
   rows = 3,
-  type = 'text'
+  type = 'text',
+  style
 }: LiffInputProps) {
   const inputStyles = {
     ...styles.input,
     ...(multiline && { ...styles.textarea, height: `${rows * 24 + 16}px` }),
+    ...style,
   };
 
   if (multiline) {
     return (
-      <div style={styles.container}>
+      <div style={{...styles.container, ...style}}>
         <textarea
           value={value}
           onChange={(e) => onChange(e.target.value)}
@@ -45,7 +48,7 @@ export default function LiffInput({
   }
 
   return (
-    <div style={styles.container}>
+    <div style={{...styles.container, ...style}}>
       <input
         type={type}
         value={value}
