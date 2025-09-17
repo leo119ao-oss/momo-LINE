@@ -3,7 +3,9 @@ import { supabaseAdmin } from './supabaseAdmin';
 import OpenAI from 'openai';
 import { searchArticles } from './search';
 import type { RagHit } from './rag';
-import { buildInfoPrompt, buildEmpathyPrompt, buildConfirmPrompt } from './prompts';
+import { buildInfoPrompt, buildEmpathyPrompt, buildConfirmPrompt, EMPATHY_REFLECTIVE_SYSTEM, EMPATHY_FRIENDLY_SYSTEM, EMPATHY_REFLECTIVE_FEWSHOT } from './prompts';
+import { flags } from '../config/flags';
+import { logEmpathyMeta } from './log';
 import { oneLineWhy } from './rag';
 import { appRev } from './log';
 import { slugify } from './slug';
@@ -719,8 +721,10 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
     const conversationContext = conversationFlow.isDeepConversation ? 
       `\n[会話の流れ]\n前回のテーマ: ${conversationFlow.lastTheme || '新しい話題'}\n会話の深さ: ${conversationFlow.messageCount}回のやり取り\n前回のAI応答: ${conversationFlow.lastAiMessage}` : '';
     
-      const reflectionSystem = `
-${MOMO_VOICE}${profile}${conversationContext}
+      // 傾聴スタイルの切り替え
+      const system = flags.empathyStyle === "reflective"
+        ? EMPATHY_REFLECTIVE_SYSTEM
+        : `${MOMO_VOICE}${profile}${conversationContext}
 
 [ルール]
 - 会話の流れを意識し、前回の内容に自然に繋げる。
@@ -735,11 +739,24 @@ ${MOMO_VOICE}${profile}${conversationContext}
 - 箇条書きは日本語の点を使う。
 `.trim();
 
+    // Few-shot例の追加（reflectiveモードの場合）
+    let messagesWithExamples = messages;
+    if (flags.empathyStyle === "reflective" && EMPATHY_REFLECTIVE_FEWSHOT.length > 0) {
+      const fewShotMessages = EMPATHY_REFLECTIVE_FEWSHOT.slice(0, 2).flatMap(example => [
+        { role: 'user' as const, content: example.user },
+        { role: 'assistant' as const, content: example.assistant }
+      ]);
+      messagesWithExamples = [...fewShotMessages, ...messages];
+    }
+
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      messages: [{ role: 'system', content: reflectionSystem }, ...messages],
+      messages: [{ role: 'system', content: system }, ...messagesWithExamples],
     });
     aiMessage = completion.choices[0].message.content || 'うんうん、そうなんだね。';
+    
+    // 傾聴メタログを出力
+    logEmpathyMeta(text, aiMessage);
   }
 
   // AIの応答をログに保存
