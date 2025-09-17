@@ -3,7 +3,7 @@
 import { ReactNode } from 'react';
 
 interface LiffLayoutProps {
-  children: ReactNode;
+  children?: ReactNode;
   title: string;
   subtitle?: string;
   isLoading?: boolean;
