@@ -6,7 +6,6 @@
   },
   "crons": [
     { "path": "/api/cron/daily-question", "schedule": "0 22 * * *" },
-    { "path": "/api/cron/weekly-summary", "schedule": "0 9 * * *" },
-    { "path": "/api/cron/morning-quiz", "schedule": "0 7 * * *" }
+    { "path": "/api/cron/weekly-summary", "schedule": "0 9 * * *" }
   ]
 }
