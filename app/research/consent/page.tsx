@@ -75,7 +75,7 @@ function Shell({children}:{children:any}) {
   );
 }
 
-const banner = {background:"#FFF0F4", color:"#FF6F91", padding:"8px 12px", borderRadius:10, fontSize:12, textAlign:"center" as const, marginBottom:12};
+const _banner = {background:"#FFF0F4", color:"#FF6F91", padding:"8px 12px", borderRadius:10, fontSize:12, textAlign:"center" as const, marginBottom:12};
 const h1 = {fontSize:22, fontWeight:700, margin:"4px 0 8px"};
 const card = {background:"#fff", border:"1px solid #eee", borderRadius:12, padding:16};
 const label = {display:"block", fontSize:13, color:"#444", marginBottom:6};

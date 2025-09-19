@@ -56,24 +56,35 @@ export function resolveQuizId(quiz: QuizDataLike): number | undefined {
 }
 
 // 既存の関数をプレースホルダーとして追加
-export async function generateQuizFromAutoSearch(): Promise<any> {
+export interface QuizData {
+  id: number;
+  question: string;
+  choices: string[];
+  correct_index: number;
+  article_url: string;
+}
+
+export async function generateQuizFromAutoSearch(): Promise<QuizData | null> {
   // TODO: 実装
   return null;
 }
 
-export async function generateQuizFromArticle(articleUrl: string): Promise<any> {
+export async function generateQuizFromArticle(_articleUrl: string): Promise<QuizData | null> {
   // TODO: 実装
   return null;
 }
 
-export function validateQuizData(quizData: any): boolean {
+export function validateQuizData(_quizData: unknown): boolean {
   // TODO: 実装
   return true;
 }
 
-export function buildTeaserFlex(quiz: any): any {
+export function buildTeaserFlex(_quiz: QuizDataLike) {
   // TODO: 実装
-  return null;
+  return {
+    type: 'text' as const,
+    text: 'クイズを準備中...'
+  };
 }
 
 export async function generateShortHook(question: string): Promise<string> {

@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
       shortHook = quiz.question.slice(0, 20) + '...';
     }
 
-    const results: any[] = [];
+        const results: { ok?: string; ng?: string; error?: string }[] = [];
     
     for (const user of users) {
       try {

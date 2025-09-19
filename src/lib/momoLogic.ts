@@ -2,8 +2,7 @@
 import { supabaseAdmin } from './supabaseAdmin';
 import OpenAI from 'openai';
 import { searchArticles } from './search';
-import type { RagHit } from './rag';
-import { buildInfoPrompt, buildEmpathyPrompt, buildConfirmPrompt, EMPATHY_REFLECTIVE_SYSTEM, EMPATHY_FRIENDLY_SYSTEM, EMPATHY_REFLECTIVE_FEWSHOT } from './prompts';
+import { buildInfoPrompt, buildConfirmPrompt, EMPATHY_REFLECTIVE_SYSTEM, EMPATHY_REFLECTIVE_FEWSHOT } from './prompts';
 import { flags } from '../config/flags';
 import { logEmpathyMeta } from './log';
 import { oneLineWhy } from './rag';
@@ -21,13 +20,6 @@ const MOMO_VOICE = `
 - 箇条書きは日本語の点を使う。
 `.trim();
 
-// 理由パースのユーティリティ
-function _clean(s: any) {
-  return String(s ?? '')
-    .replace(/^\s*["'\u3000]+|["'\u3000]+\s*$/g, '')
-    .replace(/\s+/g, ' ')
-    .slice(0, 140);
-}
 
 
 function cleanForLine(raw: string): string {
@@ -65,9 +57,29 @@ async function fetchMetaFromOEmbed(url: string) {
   const ep = `https://www.okaasan.net/wp-json/oembed/1.0/embed?url=${encodeURIComponent(url)}`;
   const r = await fetch(ep, { cache: 'no-store' });
   if (!r.ok) return null;
-  const j: any = await r.json();
-  const title = cleanText(j?.title);
-  const author = j?.author_name || 'お母さん大学';
+  const j: unknown = await r.json();
+
+  // title を安全に取り出すヘルパー
+  function safeTitleFromJson(x: unknown): string | null {
+    if (x && typeof x === 'object') {
+      const anyx = x as any;
+      // パターン1: { title: "..." }
+      if (typeof anyx.title === 'string') {
+        return cleanText(anyx.title);
+      }
+      // パターン2: { title: { rendered: "..." } } (WP APIっぽい)
+      if (anyx.title && typeof anyx.title === 'object' && typeof anyx.title.rendered === 'string') {
+        return cleanText(anyx.title.rendered);
+      }
+    }
+    return null;
+  }
+
+  const title = safeTitleFromJson(j);
+  const author =
+    (j && typeof j === 'object' && 'author_name' in (j as any) && typeof (j as any).author_name === 'string')
+      ? (j as any).author_name
+      : 'お母さん大学';
   return title ? { title, author_name: author } : null;
 }
 
@@ -78,11 +90,13 @@ async function fetchMetaFromPosts(url: string) {
     const r1 = await fetch(`${base}?slug=${encodeURIComponent(slug)}&_embed=author&per_page=1`);
     if (r1.ok) {
       const arr: any[] = await r1.json();
-      const p = arr?.[0];
-      if (p) return {
-        title: cleanText(p?.title?.rendered),
-        author_name: p?._embedded?.author?.[0]?.name || 'お母さん大学',
-      };
+      const p = (Array.isArray(arr) ? arr[0] : undefined) as any;
+      if (p && p.title && typeof p.title.rendered === 'string') {
+        return {
+          title: cleanText(p.title.rendered),
+          author_name: p?._embedded?.author?.[0]?.name || 'お母さん大学',
+        };
+      }
     }
   }
   // URLでのsearchは精度が落ちるので最後の最後だけ
@@ -109,9 +123,11 @@ async function fetchTitleFromHtml(url: string) {
 
 const metaCache = new Map<string, { title?: string; author_name?: string }>();
 
-export async function fillTitleAuthorIfMissing(hit: any) {
+export async function fillTitleAuthorIfMissing(hit: { title?: string; author_name?: string; source_url?: string }) {
   if (hit.title && hit.author_name) return hit;
 
+  if (!hit.source_url) return hit;
+  
   const cached = metaCache.get(hit.source_url);
   if (cached) {
     hit.title = hit.title ?? cached.title;
@@ -147,14 +163,14 @@ export async function fillTitleAuthorIfMissing(hit: any) {
 }
 
 
-export async function buildReferenceBlock(userMessage: string, picked: any[]) {
+export async function buildReferenceBlock(userMessage: string, picked: { title?: string; author_name?: string; source_url?: string }[]) {
   // lazy-fill処理（タイトル・著者情報の補完）
   for (let i = 0; i < picked.length; i++) {
     picked[i] = await fillTitleAuthorIfMissing(picked[i]);
   }
 
   // picked に対して lazy-fill を回した直後
-  console.log('RAG_META_AFTER', picked.map((p: any) => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
+  console.log('RAG_META_AFTER', picked.map((p) => ({ url: p.source_url, t: !!p.title, a: !!p.author_name })));
 
   // 参考記事ブロック生成（新しい構造では不要）
   return '';
@@ -233,29 +249,29 @@ async function getConversationContext(participantId: number) {
 }
 
 // 会話の流れを分析する関数
-function analyzeConversationFlow(logs: any[]) {
+function analyzeConversationFlow(logs: { role: string; content?: string; created_at?: string }[]) {
   const userMessages = logs.filter(l => l.role === 'user').slice(-3); // 直近3つのユーザーメッセージ
   const aiMessages = logs.filter(l => l.role === 'assistant').slice(-3); // 直近3つのAIメッセージ
   
   // 会話のテーマを抽出
-  const themes = userMessages.map(msg => extractTheme(msg.content)).filter(Boolean);
+  const themes = userMessages.map(msg => extractTheme(msg.content || '')).filter(Boolean);
   const lastTheme = themes[themes.length - 1];
   
   // 会話の深さを判定
   const isDeepConversation = userMessages.length >= 2 && 
-    userMessages.some(msg => msg.content.length > 20);
+    userMessages.some(msg => (msg.content || '').length > 20);
   
   // 会話の文脈をより詳細に分析
   const conversationContext = {
     hasUnclearResponses: userMessages.some(msg => 
-      /^(はそう|そう|うん|はい|いいえ|わからない|知らない|何|なに|どう|なぜ|どうして|あの|えー|うーん|んー|そうですね|それ|これ|あれ|どれ)$/i.test(msg.content.trim())
+      /^(はそう|そう|うん|はい|いいえ|わからない|知らない|何|なに|どう|なぜ|どうして|あの|えー|うーん|んー|そうですね|それ|これ|あれ|どれ)$/i.test((msg.content || '').trim())
     ),
-    averageMessageLength: userMessages.reduce((sum, msg) => sum + msg.content.length, 0) / userMessages.length,
-    lastMessageLength: userMessages[userMessages.length - 1]?.content.length || 0,
+    averageMessageLength: userMessages.reduce((sum, msg) => sum + (msg.content || '').length, 0) / userMessages.length,
+    lastMessageLength: (userMessages[userMessages.length - 1]?.content || '').length,
     conversationDepth: userMessages.length,
-    hasQuestions: userMessages.some(msg => /[？\?]/.test(msg.content)),
+    hasQuestions: userMessages.some(msg => /[？\?]/.test(msg.content || '')),
     hasEmotionalWords: userMessages.some(msg => 
-      /(疲れ|イライラ|不安|心配|楽しい|嬉しい|悲しい|困る|悩み)/.test(msg.content)
+      /(疲れ|イライラ|不安|心配|楽しい|嬉しい|悲しい|困る|悩み)/.test(msg.content || '')
     )
   };
   
@@ -295,7 +311,7 @@ function extractTheme(message: string): string | null {
  * @param q ユーザーメッセージ
  * @returns 2択+自由入力の確認質問
  */
-async function askForClarification(q: string): Promise<string> {
+async function _askForClarification(q: string): Promise<string> {
   return buildConfirmPrompt(q, [
     "A) もう少しレシピの基本が知りたい",
     "B) 今日作れる代替案を提案してほしい"
@@ -309,7 +325,7 @@ async function askForClarification(q: string): Promise<string> {
  * @param conversationContext 会話の文脈
  * @returns 聞き返しが必要な場合の応答、またはnull
  */
-async function checkForClarification(userMessage: string, conversationContext: any): Promise<string | null> {
+async function checkForClarification(userMessage: string, conversationContext: { isDeepConversation?: boolean; lastTheme?: string | null; messageCount?: number }): Promise<string | null> {
   // 不明確なメッセージのパターンを検出
   const unclearPatterns = [
     /^(はそう|そう|うん|はい|いいえ|わからない|知らない)$/i, // 単純な相づち
@@ -326,7 +342,7 @@ async function checkForClarification(userMessage: string, conversationContext: a
 
   // 会話の文脈から推察を試みる
   const contextInfo = conversationContext.isDeepConversation ? 
-    `前回のテーマ: ${conversationContext.lastTheme || '新しい話題'}\n前回のAI応答: ${conversationContext.lastAiMessage}` : 
+    `前回のテーマ: ${conversationContext.lastTheme || '新しい話題'}\n前回のAI応答: ${(conversationContext as any).lastAiMessage || 'なし'}` : 
     '新しい会話の開始';
 
   const prompt = `
@@ -471,7 +487,7 @@ async function finalizeIntentWithContext(userMessage: string): Promise<UserInten
  * @param userMessage ユーザーからの質問
  * @returns AIが生成した回答と引用元URL
  */
-async function handleInformationSeeking(participant: any, userMessage: string): Promise<string> {
+async function handleInformationSeeking(participant: { id: string; display_name?: string; contact?: string }, userMessage: string): Promise<string> {
   console.log('Handling information seeking intent...');
   try {
     // 新しいRAG検索を使用
@@ -497,7 +513,7 @@ async function handleInformationSeeking(participant: any, userMessage: string): 
       ]);
     }
 
-    const { lastUser, thread: recentThread, conversationFlow } = await getConversationContext(participant.id);
+    const { lastUser, thread: _recentThread, conversationFlow } = await getConversationContext(parseInt(participant.id));
     
     // 不明確なメッセージの場合は聞き返しを優先
     const clarificationResponse = await checkForClarification(userMessage, conversationFlow);
@@ -506,7 +522,7 @@ async function handleInformationSeeking(participant: any, userMessage: string): 
     }
     
     // 会話の継続性を考慮したシステムプロンプト
-    const contextInfo = conversationFlow.isDeepConversation ? 
+    const _contextInfo = conversationFlow.isDeepConversation ? 
       `\n[会話の流れ]\n前回のテーマ: ${conversationFlow.lastTheme || '新しい話題'}\n会話の深さ: ${conversationFlow.messageCount}回のやり取り` : '';
     
     const contextText = hits.map(h => h.chunk).join('\n---\n');

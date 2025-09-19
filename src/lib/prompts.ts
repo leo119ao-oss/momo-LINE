@@ -49,12 +49,12 @@ export const EMPATHY_REFLECTIVE_FEWSHOT = [
   }
 ];
 
-export function buildEmpathyPrompt(utterance: string) {
+export function buildEmpathyPrompt(_utterance: string) {
   return `あなたは傾聴に徹する相棒。相手の言葉を要約→共感→一言だけ背中を押す。助言は一つまで。`;
 }
 
 export function buildConfirmPrompt(query: string, choices: string[]) {
-  const opts = choices.map((c,i)=>`${c}`).join(" / ");
+  const opts = choices.map((c)=>`${c}`).join(" / ");
   return `関連度の高い情報が十分に見つかりませんでした。次のどれに近いですか？ ${opts}
 自由入力もOKです。`;
 }
