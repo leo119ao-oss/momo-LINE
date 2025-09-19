@@ -38,7 +38,7 @@ export default function DailyCard({ userId, onComplete }: DailyCardProps) {
       } else {
         alert("送信に失敗しました。もう一度お試しください。");
       }
-    } catch (error) {
+      } catch {
       alert("エラーが発生しました。");
     } finally {
       setIsSubmitting(false);

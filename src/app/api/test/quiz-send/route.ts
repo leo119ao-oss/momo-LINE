@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
       userIds = users?.map(u => u.line_user_id) || [];
     }
 
-    const results: any[] = [];
+        const results: { ok?: string; ng?: string; error?: string }[] = [];
 
     for (const userId of userIds) {
       try {
@@ -54,8 +54,11 @@ export async function POST(request: NextRequest) {
           text: `【朝の1分】${shortHook}（3択・30秒）`
         });
 
-        // 2通目：Flexメッセージ
-        await lineClient.pushMessage(userId, buildTeaserFlex(quiz));
+        // 2通目：Flexメッセージ（null安全）
+        const flex = buildTeaserFlex(quiz);
+        if (flex) {
+          await lineClient.pushMessage(userId, flex);
+        }
 
         // ログ記録（sent）
         await logQuizAction(userId, quizId, 'sent', undefined, quiz.article_url);
@@ -63,7 +66,8 @@ export async function POST(request: NextRequest) {
         results.push({ ok: userId });
       } catch (error) {
         console.error(`Failed to send quiz to ${userId}:`, error);
-        results.push({ ng: userId, error: String(error) });
+        // resultsは { ok?: string; error?: string }[] 想定なので 'ng' プロパティは使わない
+        results.push({ error: `${userId}: ${String(error)}` });
       }
     }
 

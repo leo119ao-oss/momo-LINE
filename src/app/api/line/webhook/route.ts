@@ -21,7 +21,7 @@ async function handleImage(event: MessageEvent){
 
     // Supabase Storage に保存（公開URL）
     const path = `images/${userId}/${event.message.id}.jpg`;
-    const { data:upload, error } = await supabaseAdmin.storage.from('media').upload(path, buf, { 
+    const { error } = await supabaseAdmin.storage.from('media').upload(path, buf, { 
       contentType: 'image/jpeg', 
       upsert: true 
     });

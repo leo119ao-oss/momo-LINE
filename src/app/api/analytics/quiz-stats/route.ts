@@ -40,8 +40,8 @@ export async function GET(request: NextRequest) {
     const tap_choice_rate = stats.total_sent > 0 ? (stats.total_tap_choice / stats.total_sent * 100) : 0;
     const open_rate = stats.total_sent > 0 ? (stats.total_open / stats.total_sent * 100) : 0;
 
-    // 日別統計
-    const dailyStats: any = {};
+        // 日別統計
+        const dailyStats: Record<string, { sent: number; tap_choice: number; open: number }> = {};
     quizStats.forEach(log => {
       const date = new Date(log.created_at).toISOString().split('T')[0];
       if (!dailyStats[date]) {
@@ -50,8 +50,8 @@ export async function GET(request: NextRequest) {
       dailyStats[date][log.action as keyof typeof dailyStats[string]]++;
     });
 
-    // クイズ別統計
-    const quizStatsByQuiz: any = {};
+        // クイズ別統計
+        const quizStatsByQuiz: Record<string, { sent: number; tap_choice: number; open: number }> = {};
     quizStats.forEach(log => {
       const quizId = log.quiz_id.toString();
       if (!quizStatsByQuiz[quizId]) {

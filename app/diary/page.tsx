@@ -1,5 +1,6 @@
 "use client";
 import { useEffect, useState } from "react";
+import Image from "next/image";
 import { ensureLiff, getLineUserId } from "@/lib/liffClient";
 import LiffLayout from "@/components/LiffLayout";
 import LiffCard from "@/components/LiffCard";
@@ -84,11 +85,14 @@ export default function Page(){
       {entryId && !doneUrl && (
         <LiffCard>
           {preview && (
-            <img 
+            <Image 
               src={preview} 
               alt="プレビュー" 
+              width={400}
+              height={300}
               style={{
                 width: '100%', 
+                height: 'auto',
                 borderRadius: '16px', 
                 marginBottom: '16px',
                 boxShadow: '0 4px 12px rgba(0, 0, 0, 0.1)'

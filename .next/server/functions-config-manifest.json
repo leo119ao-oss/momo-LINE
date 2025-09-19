@@ -1,1 +1,1 @@
-{"version":1,"functions":{"/api/ask":{},"/api/diary/upload":{},"/api/diary/finalize":{},"/research/consent":{}}}
+{"version":1,"functions":{"/api/diary/upload":{},"/api/diary/finalize":{},"/research/consent":{},"/api/ask":{}}}

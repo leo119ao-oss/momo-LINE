@@ -53,7 +53,7 @@ async function enrichWithWpMeta(hits: RagHit[]): Promise<RagHit[]> {
           title: hit.title || meta.title,
           author: hit.author || meta.author,
         };
-      } catch (error) {
+      } catch {
         logRagMeta(hit.url, false, false);
         return hit;
       }
