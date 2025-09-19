@@ -93,16 +93,25 @@ async function handleImage(event: MessageEvent){
 }
 
 export async function POST(req: NextRequest) {
+  console.log('[WEBHOOK] Request received');
+  
+  // 環境変数の確認
+  console.log('[WEBHOOK] LINE_CHANNEL_SECRET present:', !!process.env.LINE_CHANNEL_SECRET);
+  console.log('[WEBHOOK] LINE_CHANNEL_ACCESS_TOKEN present:', !!process.env.LINE_CHANNEL_ACCESS_TOKEN);
+  
   const body = await req.text();
   const signature = req.headers.get('x-line-signature') || '';
 
+  console.log('[WEBHOOK] Body length:', body.length);
+  console.log('[WEBHOOK] Signature present:', !!signature);
+
   if (!validateSignature(body, process.env.LINE_CHANNEL_SECRET!, signature)) {
-    console.error('Signature validation failed');
+    console.error('[WEBHOOK] Signature validation failed');
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   const events = JSON.parse(body).events;
-  console.log(`Received ${events.length} webhook events`);
+  console.log(`[WEBHOOK] Received ${events.length} webhook events`);
 
   try {
     for (const event of events) {
@@ -115,7 +124,7 @@ export async function POST(req: NextRequest) {
         const userId = event.source.userId!;
         const userMessage = event.message.text;
 
-        console.log(`Processing message from user ${userId}: ${userMessage.substring(0, 50)}...`);
+        console.log(`[WEBHOOK] Processing message from user ${userId}: ${userMessage.substring(0, 50)}...`);
 
         try {
           // 未回答の画像があればキャプション確定
@@ -140,7 +149,9 @@ export async function POST(req: NextRequest) {
             continue;
           }
 
+          console.log(`[WEBHOOK] Calling handleTextMessage for user ${userId}`);
           const replyMessage = await handleTextMessage(userId, userMessage);
+          console.log(`[WEBHOOK] Got reply message: ${replyMessage.substring(0, 100)}...`);
 
           // キーワードでクイックリプライを追加
           const keywords = ['参加', '日次', '週次', 'ヘルプ', 'メニュー'];
@@ -183,10 +194,12 @@ export async function POST(req: NextRequest) {
             await lineClient.replyMessage(event.replyToken, qr);
           } else {
             // replyは一度きり。失敗時はpushしないでログのみ（ダブり防止）
+            console.log(`[WEBHOOK] Sending reply message to user ${userId}`);
             await lineClient.replyMessage(event.replyToken, {
               type: 'text',
               text: replyMessage,
             });
+            console.log(`[WEBHOOK] Reply sent successfully`);
           }
 
           console.log(`Successfully replied to user ${userId}`);
