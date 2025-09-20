@@ -9,6 +9,7 @@ import { oneLineWhy } from './rag';
 import { appRev } from './log';
 import { slugify } from './slug';
 import { logRagEvent } from './telemetry';
+import { findOrCreateParticipant } from './participants';
 
 // 共通のMomoボイス定義
 const MOMO_VOICE = `
@@ -183,26 +184,7 @@ const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
 });
 
-// JSDoc: ユーザー情報を取得または作成する関数
-async function findOrCreateParticipant(lineUserId: string) {
-  let { data: participant } = await supabaseAdmin
-    .from('participants')
-    .select('*')
-    .eq('line_user_id', lineUserId)
-    .single();
-
-  if (!participant) {
-    const { data: newParticipant, error } = await supabaseAdmin
-      .from('participants')
-      .insert({ line_user_id: lineUserId, archetype: 'B' })
-      .select()
-      .single();
-    
-    if (error) throw error;
-    participant = newParticipant;
-  }
-  return participant;
-}
+// findOrCreateParticipant関数は participants.ts に移動済み
 
 type UserIntent = 'information_seeking' | 'personal_reflection';
 
