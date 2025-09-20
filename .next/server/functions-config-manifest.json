@@ -1,1 +1,1 @@
-{"version":1,"functions":{"/api/diary/upload":{},"/api/diary/finalize":{},"/research/consent":{},"/api/ask":{}}}
+{"version":1,"functions":{"/api/analytics/quiz-stats":{},"/api/cron/daily-question":{},"/api/debug/rag":{},"/api/diary/finalize":{},"/api/diary/upload":{},"/api/cron/morning-quiz":{},"/api/ping":{},"/api/line/webhook":{},"/api/test-webhook":{},"/api/test-token":{},"/api/health":{},"/api/test/quiz-send":{},"/diary/[slug]":{},"/api/test/quiz-generate":{},"/research/consent":{},"/api/cron/weekly-summary":{},"/api/ask":{}}}

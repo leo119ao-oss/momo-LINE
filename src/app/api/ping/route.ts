@@ -1,5 +1,8 @@
-// src/app/api/ping/route.ts
+import { NextResponse } from 'next/server';
+
 export const runtime = 'nodejs';
+export const dynamic = 'force-dynamic';
+
 export async function GET() {
-  return new Response('pong', { status: 200 });
+  return NextResponse.json({ message: 'pong' }, { status: 200 });
 }
