@@ -170,7 +170,7 @@ export async function POST(req: NextRequest) {
         if (isNew) {
           await lineClient.replyMessage(event.replyToken, {
             type: 'text',
-            text: 'いまの気分、どれが近い？（押すだけでOK）',
+            text: 'こんにちは！いまの気分に近いものを選んでみてください。タップするだけでOKです。',
             ...emotionQuickReply()
           } as any);
           continue;
@@ -181,9 +181,19 @@ export async function POST(req: NextRequest) {
           const data: string = event.postback?.data || '';
           if (data.startsWith('emotion:')) {
             const emotionKey = data.split(':')[1];
+            const emotionLabels = {
+              'smile': '😊 うれしい',
+              'neutral': '😐 ふつう',
+              'tired': '😩 つかれた',
+              'anger': '😡 いらいら',
+              'sad': '😢 かなしい',
+              'think': '🤔 かんがえる'
+            };
+            const selectedEmotion = emotionLabels[emotionKey as keyof typeof emotionLabels] || emotionKey;
+            
             await lineClient.replyMessage(event.replyToken, {
               type: 'text',
-              text: 'うけとったよ。少しだけ掘ってみてもいい？',
+              text: `${selectedEmotion}を選んだんだね。もう少し詳しく教えてもらえる？どちらが近いかな？`,
               ...deepeningQuickReply(emotionKey)
             } as any);
             continue;
@@ -191,6 +201,14 @@ export async function POST(req: NextRequest) {
           if (data.startsWith('deep:')) {
             const [, emotionKey, choice] = data.split(':');
             const userText = `${emotionKey}:${choice}`;
+            
+            // 選択内容の確認メッセージを送信
+            await lineClient.replyMessage(event.replyToken, {
+              type: 'text',
+              text: `「${choice}」について聞かせてくれてありがとう。`
+            } as any);
+            
+            // 傾聴応答を生成
             const base = await generateReflectiveCore(userText);
 
             const gate = shouldAddInsightCue(userText, {
@@ -213,7 +231,8 @@ export async function POST(req: NextRequest) {
               insight = comp.choices?.[0]?.message?.content?.trim() ?? '';
             }
 
-            await lineClient.replyMessage(event.replyToken, {
+            // 傾聴応答を別のメッセージとして送信
+            await lineClient.pushMessage(userId, {
               type: 'text',
               text: [base, insight].filter(Boolean).join('\n'),
               ...endOrDiaryQR()
