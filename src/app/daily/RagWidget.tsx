@@ -6,15 +6,44 @@ export default function RagWidget({ contact }:{ contact:string }) {
   const [q, setQ] = useState("");
   const [payload, setPayload] = useState<TConfirmPayload | TRecPayload | null>(null);
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string>("");
 
   async function ask(body:any) {
     setPending(true);
-    const r = await fetch("/api/ask", { method:"POST", headers:{ "content-type":"application/json" }, body: JSON.stringify(body) });
-    const t = await r.json();
-    setPending(false);
-    if (ConfirmPayload.safeParse(t).success) setPayload(t);
-    else if (RecPayload.safeParse(t).success) setPayload(t);
-    else setPayload(null);
+    setError("");
+    setPayload(null);
+    
+    try {
+      console.log('[RAG] Sending request:', body);
+      const r = await fetch("/api/ask", { 
+        method:"POST", 
+        headers:{ "content-type":"application/json" }, 
+        body: JSON.stringify(body) 
+      });
+      
+      if (!r.ok) {
+        const errorText = await r.text();
+        console.error('[RAG] API error:', r.status, errorText);
+        throw new Error(`API Error: ${r.status} ${errorText}`);
+      }
+      
+      const t = await r.json();
+      console.log('[RAG] Received response:', t);
+      
+      if (ConfirmPayload.safeParse(t).success) {
+        setPayload(t);
+      } else if (RecPayload.safeParse(t).success) {
+        setPayload(t);
+      } else {
+        console.warn('[RAG] Unexpected response format:', t);
+        setError("予期しない応答形式です。");
+      }
+    } catch (err) {
+      console.error('[RAG] Error in ask function:', err);
+      setError("情報の検索中にエラーが発生しました。しばらく時間をおいてから再度お試しください。");
+    } finally {
+      setPending(false);
+    }
   }
 
   return (
@@ -26,6 +55,12 @@ export default function RagWidget({ contact }:{ contact:string }) {
       </div>
 
       {pending && <p style={{fontSize:12, color:"#999", marginTop:8}}>検索中…</p>}
+
+      {error && (
+        <div style={{marginTop:10, padding:8, backgroundColor:"#FFF5F5", border:"1px solid #FECACA", borderRadius:8}}>
+          <p style={{fontSize:12, color:"#DC2626", margin:0}}>⚠️ {error}</p>
+        </div>
+      )}
 
       {payload && ("type" in payload) && payload.type === "confirm" && (
         <div style={{marginTop:10}}>
