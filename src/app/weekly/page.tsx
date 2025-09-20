@@ -11,11 +11,25 @@ export default function Page() {
   const [did, setDid] = useState("家事");
   const [relied, setRelied] = useState("家族");
   const [nextStep, setNext] = useState("早寝");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string>("");
 
-  useEffect(()=>{ (async()=>{
-    await ensureLiff(process.env.NEXT_PUBLIC_LIFF_WEEKLY_ID!);
-    setUid(await getLineUserId());
-  })(); },[]);
+  useEffect(()=>{ 
+    (async()=>{
+      try {
+        console.log('[WEEKLY] Starting LIFF initialization...');
+        await ensureLiff(process.env.NEXT_PUBLIC_LIFF_WEEKLY_ID!);
+        const userId = await getLineUserId();
+        console.log('[WEEKLY] User ID obtained:', userId);
+        setUid(userId);
+        setIsLoading(false);
+      } catch (err) {
+        console.error('[WEEKLY] Error initializing LIFF:', err);
+        setError('LIFFの初期化に失敗しました。LINEアプリから再度お試しください。');
+        setIsLoading(false);
+      }
+    })(); 
+  },[]);
 
   async function submit(){
     if(!uid) return;
@@ -30,12 +44,32 @@ export default function Page() {
     }
   }
 
-  if (!uid) {
-  return (
+  if (isLoading) {
+    return (
       <LiffLayout 
         title="週次まとめ" 
         subtitle="読み込み中..." 
         isLoading={true}
+      />
+    );
+  }
+
+  if (error) {
+    return (
+      <LiffLayout 
+        title="週次まとめ" 
+        subtitle="エラーが発生しました"
+        error={error}
+      />
+    );
+  }
+
+  if (!uid) {
+    return (
+      <LiffLayout 
+        title="週次まとめ" 
+        subtitle="ユーザー情報の取得に失敗しました"
+        error="LINEアプリから再度お試しください"
       />
     );
   }
