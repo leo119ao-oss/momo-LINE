@@ -19,15 +19,52 @@ export default function Page(){
   const [title, setTitle] = useState("");
   const [note, setNote] = useState("");
   const [doneUrl, setDoneUrl] = useState<string>("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string>("");
 
-  useEffect(()=>{ (async()=>{ await ensureLiff(process.env.NEXT_PUBLIC_LIFF_DIARY_ID!); setUid(await getLineUserId()); })(); },[]);
+  useEffect(()=>{ 
+    (async()=>{
+      try {
+        console.log('[DIARY] Starting LIFF initialization...');
+        await ensureLiff(process.env.NEXT_PUBLIC_LIFF_DIARY_ID!);
+        const userId = await getLineUserId();
+        console.log('[DIARY] User ID obtained:', userId);
+        setUid(userId);
+        setIsLoading(false);
+      } catch (err) {
+        console.error('[DIARY] Error initializing LIFF:', err);
+        setError('LIFFの初期化に失敗しました。LINEアプリから再度お試しください。');
+        setIsLoading(false);
+      }
+    })(); 
+  },[]);
   
-  if (!uid) {
+  if (isLoading) {
     return (
       <LiffLayout 
         title="家族カード（絵日記）" 
         subtitle="読み込み中..." 
         isLoading={true}
+      />
+    );
+  }
+
+  if (error) {
+    return (
+      <LiffLayout 
+        title="家族カード（絵日記）" 
+        subtitle="エラーが発生しました"
+        error={error}
+      />
+    );
+  }
+
+  if (!uid) {
+    return (
+      <LiffLayout 
+        title="家族カード（絵日記）" 
+        subtitle="ユーザー情報の取得に失敗しました"
+        error="LINEアプリから再度お試しください"
       />
     );
   }

@@ -17,11 +17,25 @@ export default function Page() {
   const [eff, setEff] = useState(5);
   const [choice, setChoice] = useState("家事");
   const [memo, setMemo] = useState("");
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string>("");
 
-  useEffect(() => { (async () => {
-    await ensureLiff(process.env.NEXT_PUBLIC_LIFF_DAILY_ID!);
-    setUid(await getLineUserId());
-  })(); }, []);
+  useEffect(() => { 
+    (async () => {
+      try {
+        console.log('[DAILY] Starting LIFF initialization...');
+        await ensureLiff(process.env.NEXT_PUBLIC_LIFF_DAILY_ID!);
+        const userId = await getLineUserId();
+        console.log('[DAILY] User ID obtained:', userId);
+        setUid(userId);
+        setIsLoading(false);
+      } catch (err) {
+        console.error('[DAILY] Error initializing LIFF:', err);
+        setError('LIFFの初期化に失敗しました。LINEアプリから再度お試しください。');
+        setIsLoading(false);
+      }
+    })(); 
+  }, []);
 
   async function submit() {
     if (!uid) return;
@@ -37,12 +51,32 @@ export default function Page() {
     }
   }
 
-  if (!uid) {
+  if (isLoading) {
     return (
       <LiffLayout 
         title="今日の1分" 
         subtitle="読み込み中..." 
         isLoading={true}
+      />
+    );
+  }
+
+  if (error) {
+    return (
+      <LiffLayout 
+        title="今日の1分" 
+        subtitle="エラーが発生しました"
+        error={error}
+      />
+    );
+  }
+
+  if (!uid) {
+    return (
+      <LiffLayout 
+        title="今日の1分" 
+        subtitle="ユーザー情報の取得に失敗しました"
+        error="LINEアプリから再度お試しください"
       />
     );
   }
