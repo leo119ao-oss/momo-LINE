@@ -377,6 +377,8 @@ export async function POST(req: NextRequest) {
         const participant = await findOrCreateParticipant(userId);
         const { session, isNew } = await getOrStartSession(participant.id);
 
+        console.log(`[WEBHOOK] Session state: isNew=${isNew}, sessionId=${session?.id}`);
+
         // 画像処理（最優先）
         if (event.type === 'message' && event.message.type === 'image') {
           await handleImage(event as any);
@@ -385,6 +387,7 @@ export async function POST(req: NextRequest) {
 
         // 新規セッション開始時は感情アイコンだけ出す
         if (isNew) {
+          console.log('[WEBHOOK] Starting new session, showing emotion buttons');
           // テキストメッセージとFlexメッセージを分けて送信
           await lineClient.replyMessage(event.replyToken, {
             type: 'text' as const,
@@ -395,6 +398,8 @@ export async function POST(req: NextRequest) {
           await lineClient.pushMessage(userId, emotionQuickReply() as any);
           continue;
         }
+
+        console.log('[WEBHOOK] Existing session, checking for text messages or postbacks');
 
         // POSTBACK（emotion/deep/diary/session）
         if (event.type === 'postback') {
@@ -525,14 +530,20 @@ export async function POST(req: NextRequest) {
         if (event.type === 'message' && event.message?.type === 'text') {
           const text: string = event.message.text?.trim() ?? '';
 
+          console.log(`[WEBHOOK] Text message received: "${text}"`);
+
           // 自由入力の場合は従来の傾聴応答
           const base = await generateReflectiveCore(text);
 
-          // 自然な応答を送信（終了選択は強制しない）
+          // 自然な応答を送信
           await lineClient.replyMessage(event.replyToken, {
             type: 'text' as const,
             text: base
           } as any);
+          
+          // 感情選択ボタンも表示（ユーザーが新しい感情を表現できるように）
+          console.log('[WEBHOOK] Showing emotion buttons for continued conversation');
+          await lineClient.pushMessage(userId, emotionQuickReply() as any);
           continue;
         }
 
