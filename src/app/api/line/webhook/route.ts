@@ -42,7 +42,7 @@ function emotionQuickReply() {
           {
             type: 'text' as const,
             text: 'いまの気分は？',
-            size: 'lg' as const,
+            size: 'xl' as const,
             weight: 'bold' as const,
             color: '#333333',
             align: 'center' as const
@@ -62,34 +62,34 @@ function emotionQuickReply() {
                     type: 'button' as const,
                     action: {
                       type: 'postback' as const,
-                      label: '😊',
+                      label: '😊 うれしい',
                       data: 'emotion:smile'
                     },
                     style: 'primary' as const,
                     color: '#FFB6C1',
-                    height: 'md'
+                    height: 'lg'
                   },
                   {
                     type: 'button' as const,
                     action: {
                       type: 'postback' as const,
-                      label: '😐',
+                      label: '😐 ふつう',
                       data: 'emotion:neutral'
                     },
                     style: 'primary' as const,
                     color: '#D3D3D3',
-                    height: 'md'
+                    height: 'lg'
                   },
                   {
                     type: 'button' as const,
                     action: {
                       type: 'postback' as const,
-                      label: '😩',
+                      label: '😩 つかれた',
                       data: 'emotion:tired'
                     },
                     style: 'primary' as const,
                     color: '#FFA07A',
-                    height: 'md'
+                    height: 'lg'
                   }
                 ]
               },
@@ -102,34 +102,34 @@ function emotionQuickReply() {
                     type: 'button' as const,
                     action: {
                       type: 'postback' as const,
-                      label: '😡',
+                      label: '😡 いらいら',
                       data: 'emotion:anger'
                     },
                     style: 'primary' as const,
                     color: '#FF6B6B',
-                    height: 'md'
+                    height: 'lg'
                   },
                   {
                     type: 'button' as const,
                     action: {
                       type: 'postback' as const,
-                      label: '😢',
+                      label: '😢 かなしい',
                       data: 'emotion:sad'
                     },
                     style: 'primary' as const,
                     color: '#87CEEB',
-                    height: 'md'
+                    height: 'lg'
                   },
                   {
                     type: 'button' as const,
                     action: {
                       type: 'postback' as const,
-                      label: '🤔',
+                      label: '🤔 かんがえる',
                       data: 'emotion:think'
                     },
                     style: 'primary' as const,
                     color: '#DDA0DD',
-                    height: 'md'
+                    height: 'lg'
                   }
                 ]
               }
@@ -155,7 +155,7 @@ function deepeningQuickReply(emotionKey: string) {
           {
             type: 'text' as const,
             text: 'どちらが近いかな？',
-            size: 'lg' as const,
+            size: 'xl' as const,
             weight: 'bold' as const,
             color: '#333333',
             align: 'center' as const
@@ -175,7 +175,7 @@ function deepeningQuickReply(emotionKey: string) {
                 },
                 style: 'primary',
                 color: '#FF8FA3',
-                    height: 'md' as const,
+                    height: 'lg' as const,
                 margin: 'sm' as const
               },
               {
@@ -187,7 +187,7 @@ function deepeningQuickReply(emotionKey: string) {
                 },
                 style: 'primary',
                 color: '#FF8FA3',
-                    height: 'md' as const,
+                    height: 'lg' as const,
                 margin: 'sm' as const
               },
               {
@@ -199,7 +199,7 @@ function deepeningQuickReply(emotionKey: string) {
                 },
                     style: 'secondary' as const,
                 color: '#E5E7EB',
-                    height: 'md' as const,
+                    height: 'lg' as const,
                 margin: 'sm' as const
               }
             ]
@@ -223,7 +223,7 @@ function endOrDiaryQR() {
           {
             type: 'text' as const,
             text: 'どうしますか？',
-            size: 'lg' as const,
+            size: 'xl' as const,
             weight: 'bold' as const,
             color: '#333333',
             align: 'center' as const
@@ -243,7 +243,7 @@ function endOrDiaryQR() {
                 },
                 style: 'primary',
                 color: '#4CAF50',
-                    height: 'md' as const,
+                    height: 'lg' as const,
                 margin: 'sm' as const
               },
               {
@@ -255,7 +255,7 @@ function endOrDiaryQR() {
                 },
                     style: 'secondary' as const,
                 color: '#9E9E9E',
-                    height: 'md' as const,
+                    height: 'lg' as const,
                 margin: 'sm' as const
               }
             ]
@@ -498,11 +498,10 @@ export async function POST(req: NextRequest) {
             }
           }
           if (data === 'diary:save') {
-            // 最後の整理をそのまま保存する簡易版（詳細は /api/diary/create に出す場合はここでフェッチ）
+            // 日記保存処理（簡易版）
             await lineClient.replyMessage(event.replyToken, {
               type: 'text' as const,
-              text: '今日の1分にメモしたよ。ここで終わる？それとも続ける？',
-              ...qr([{ label: "つづける", data: "session:cont" }, { label: "ここで終わる", data: "session:end" }])
+              text: '今日の1分にメモしました。おつかれさま！'
             } as any);
             continue;
           }
@@ -515,9 +514,10 @@ export async function POST(req: NextRequest) {
             continue;
           }
           if (data === 'session:cont') {
+            // セッション継続は削除（新しい会話フローでは不要）
             await lineClient.replyMessage(event.replyToken, {
               type: 'text' as const,
-              text: 'OK。続けよう。'
+              text: '新しい会話を始めましょう。'
             } as any);
             
             // Flexメッセージを別途送信
