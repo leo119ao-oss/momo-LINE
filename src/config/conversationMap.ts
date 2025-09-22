@@ -1,10 +1,10 @@
 export const EMOTION_CHOICES = [
-  { label: "😊 うれしい", key: "smile" },
-  { label: "😐 ふつう", key: "neutral" },
-  { label: "😩 つかれた", key: "tired" },
-  { label: "😡 いらいら", key: "anger"  },
-  { label: "😢 かなしい", key: "sad"    },
-  { label: "🤔 かんがえる", key: "think"  }
+  { label: "😊", key: "smile" },
+  { label: "😐", key: "neutral" },
+  { label: "😩", key: "tired" },
+  { label: "😡", key: "anger"  },
+  { label: "😢", key: "sad"    },
+  { label: "🤔", key: "think"  }
 ];
 
 // 感情ごとの簡易深掘り2択

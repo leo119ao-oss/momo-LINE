@@ -168,9 +168,10 @@ export async function POST(req: NextRequest) {
 
         // 新規セッション開始時は感情アイコンだけ出す
         if (isNew) {
+          // より短いメッセージでクイックリプライを送信
           await lineClient.replyMessage(event.replyToken, {
             type: 'text',
-            text: 'こんにちは！いまの気分に近いものを選んでみてください。タップするだけでOKです。',
+            text: 'こんにちは！いまの気分は？',
             ...emotionQuickReply()
           } as any);
           continue;
@@ -270,17 +271,12 @@ export async function POST(req: NextRequest) {
         if (event.type === 'message' && event.message?.type === 'text') {
           const text: string = event.message.text?.trim() ?? '';
 
-          // 最初の1往復は受け止め優先（強い追加はしない）
+          // 自由入力の場合は従来の傾聴応答
           const base = await generateReflectiveCore(text);
-
-          const gate = shouldAddInsightCue(text, {
-            hasEmotionSelected: false,
-            hasDeepeningChoice: false
-          });
 
           await lineClient.replyMessage(event.replyToken, {
             type: 'text',
-            text: base + (!gate.ok ? '' : ''), // 自由入力では原則インサイト句は抑制
+            text: base,
             ...endOrDiaryQR()
           } as any);
           continue;
@@ -292,8 +288,14 @@ export async function POST(req: NextRequest) {
       } catch (e) {
         console.error('[WEBHOOK_ERROR]', e);
         try {
-          await lineClient.replyMessage(event.replyToken, { type: 'text', text: 'ごめんね、少しうまくいかなかったみたい。' } as any);
-        } catch {}
+          // エラーメッセージは1回だけ送信
+          if (event.replyToken) {
+            await lineClient.replyMessage(event.replyToken, { type: 'text', text: 'すみません、少し調子が悪いみたい。もう一度試してみてください。' } as any);
+          }
+        } catch (replyError) {
+          console.error('[REPLY_ERROR]', replyError);
+          // リプライエラーは無視（重複送信を防ぐ）
+        }
       }
     }
   } catch (error) {
