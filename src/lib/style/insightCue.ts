@@ -7,19 +7,13 @@ export function shouldAddInsightCue(
   ctx: { hasEmotionSelected?: boolean; hasDeepeningChoice?: boolean; emotion?: string }
 ): InsightGate {
   const text = (userText || '').trim();
-  const charOk = text.length >= 18;
-  const sentenceCount = text.split(/[。！？\n]/).filter(s => s.trim()).length;
-  const sentenceOk = sentenceCount >= 2;
-  const structureOk = !!ctx.hasEmotionSelected && !!ctx.hasDeepeningChoice;
-  const hasFact = FACT_WORDS.some(w => text.includes(w));
-  const isOneWord = sentenceCount === 0 && text.length <= 8;
-  const isJustShortComplain = /^(疲れた|しんどい|つらい|無理|むり|だるい)[！!。]?$/.test(text);
+  const isTooShort = text.length <= 5;
+  const isJustEmoji = /^[\uD83C-\uDBFF\uDC00-\uDFFF]+$/.test(text);
   const peakAnger = ctx.emotion === 'anger';
 
+  // 基本的な条件のみで判断（より自然に共感を追加）
+  if (isTooShort || isJustEmoji) return { ok: false, reason: 'too_short' };
   if (peakAnger) return { ok: false, reason: 'anger_peak' };
-  if (isOneWord || isJustShortComplain) return { ok: false, reason: 'too_short' };
-  if (!(hasFact || structureOk)) return { ok: false, reason: 'no_fact' };
-  if (!((charOk && sentenceOk) || structureOk)) return { ok: false, reason: 'not_enough' };
 
   return { ok: true };
 }
