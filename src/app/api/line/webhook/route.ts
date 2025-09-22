@@ -67,7 +67,7 @@ function emotionQuickReply() {
                     },
                     style: 'primary' as const,
                     color: '#FFB6C1',
-                    height: 'lg'
+                    height: 'md'
                   },
                   {
                     type: 'button' as const,
@@ -78,7 +78,7 @@ function emotionQuickReply() {
                     },
                     style: 'primary' as const,
                     color: '#D3D3D3',
-                    height: 'lg'
+                    height: 'md'
                   },
                   {
                     type: 'button' as const,
@@ -89,7 +89,7 @@ function emotionQuickReply() {
                     },
                     style: 'primary' as const,
                     color: '#FFA07A',
-                    height: 'lg'
+                    height: 'md'
                   }
                 ]
               },
@@ -107,7 +107,7 @@ function emotionQuickReply() {
                     },
                     style: 'primary' as const,
                     color: '#FF6B6B',
-                    height: 'lg'
+                    height: 'md'
                   },
                   {
                     type: 'button' as const,
@@ -118,7 +118,7 @@ function emotionQuickReply() {
                     },
                     style: 'primary' as const,
                     color: '#87CEEB',
-                    height: 'lg'
+                    height: 'md'
                   },
                   {
                     type: 'button' as const,
@@ -129,7 +129,7 @@ function emotionQuickReply() {
                     },
                     style: 'primary' as const,
                     color: '#DDA0DD',
-                    height: 'lg'
+                    height: 'md'
                   }
                 ]
               }
@@ -175,7 +175,7 @@ function deepeningQuickReply(emotionKey: string) {
                 },
                 style: 'primary',
                 color: '#FF8FA3',
-                    height: 'lg' as const,
+                    height: 'md' as const,
                 margin: 'sm' as const
               },
               {
@@ -187,7 +187,7 @@ function deepeningQuickReply(emotionKey: string) {
                 },
                 style: 'primary',
                 color: '#FF8FA3',
-                    height: 'lg' as const,
+                    height: 'md' as const,
                 margin: 'sm' as const
               },
               {
@@ -199,7 +199,7 @@ function deepeningQuickReply(emotionKey: string) {
                 },
                     style: 'secondary' as const,
                 color: '#E5E7EB',
-                    height: 'lg' as const,
+                    height: 'md' as const,
                 margin: 'sm' as const
               }
             ]
@@ -243,7 +243,7 @@ function endOrDiaryQR() {
                 },
                 style: 'primary',
                 color: '#4CAF50',
-                    height: 'lg' as const,
+                    height: 'md' as const,
                 margin: 'sm' as const
               },
               {
@@ -255,7 +255,7 @@ function endOrDiaryQR() {
                 },
                     style: 'secondary' as const,
                 color: '#9E9E9E',
-                    height: 'lg' as const,
+                    height: 'md' as const,
                 margin: 'sm' as const
               }
             ]
