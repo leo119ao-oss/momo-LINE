@@ -9,7 +9,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import type { MessageEvent } from '@line/bot-sdk';
 import { findOrCreateParticipant } from '@/lib/participants';
 import { getOrStartSession, endSession } from '@/lib/session';
-import { EMOTION_CHOICES, DEEPENING_BY_EMOTION } from '@/config/conversationMap';
+import { DEEPENING_BY_EMOTION } from '@/config/conversationMap';
 import { shouldAddInsightCue } from '@/lib/style/insightCue';
 import { generateReflectiveCore } from '@/lib/reflectiveCore';
 import { INSIGHT_CUE_SYSTEM, INSIGHT_CUE_USER } from '@/lib/prompts.insight';
@@ -30,23 +30,240 @@ function qr(items: { label: string, text?: string, data?: string }[]) {
 }
 
 function emotionQuickReply() {
-  return qr(EMOTION_CHOICES.map(e => ({ label: e.label, data: `emotion:${e.key}` })));
+  return {
+    type: 'flex' as const,
+    altText: 'いまの気分を選んでください',
+    contents: {
+      type: 'bubble' as const,
+      body: {
+        type: 'box' as const,
+        layout: 'vertical' as const,
+        contents: [
+          {
+            type: 'text' as const,
+            text: 'いまの気分は？',
+            size: 'lg' as const,
+            weight: 'bold' as const,
+            color: '#333333',
+            align: 'center' as const
+          },
+          {
+            type: 'box',
+            layout: 'vertical' as const,
+            spacing: 'md' as const,
+            margin: 'lg' as const,
+            contents: [
+              {
+                type: 'box' as const,
+                layout: 'horizontal' as const,
+                spacing: 'sm' as const,
+                contents: [
+                  {
+                    type: 'button' as const,
+                    action: {
+                      type: 'postback' as const,
+                      label: '😊',
+                      data: 'emotion:smile'
+                    },
+                    style: 'primary' as const,
+                    color: '#FFB6C1',
+                    height: 'md'
+                  },
+                  {
+                    type: 'button' as const,
+                    action: {
+                      type: 'postback' as const,
+                      label: '😐',
+                      data: 'emotion:neutral'
+                    },
+                    style: 'primary' as const,
+                    color: '#D3D3D3',
+                    height: 'md'
+                  },
+                  {
+                    type: 'button' as const,
+                    action: {
+                      type: 'postback' as const,
+                      label: '😩',
+                      data: 'emotion:tired'
+                    },
+                    style: 'primary' as const,
+                    color: '#FFA07A',
+                    height: 'md'
+                  }
+                ]
+              },
+              {
+                type: 'box' as const,
+                layout: 'horizontal' as const,
+                spacing: 'sm' as const,
+                contents: [
+                  {
+                    type: 'button' as const,
+                    action: {
+                      type: 'postback' as const,
+                      label: '😡',
+                      data: 'emotion:anger'
+                    },
+                    style: 'primary' as const,
+                    color: '#FF6B6B',
+                    height: 'md'
+                  },
+                  {
+                    type: 'button' as const,
+                    action: {
+                      type: 'postback' as const,
+                      label: '😢',
+                      data: 'emotion:sad'
+                    },
+                    style: 'primary' as const,
+                    color: '#87CEEB',
+                    height: 'md'
+                  },
+                  {
+                    type: 'button' as const,
+                    action: {
+                      type: 'postback' as const,
+                      label: '🤔',
+                      data: 'emotion:think'
+                    },
+                    style: 'primary' as const,
+                    color: '#DDA0DD',
+                    height: 'md'
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  };
 }
 
 function deepeningQuickReply(emotionKey: string) {
   const m = DEEPENING_BY_EMOTION[emotionKey] ?? { a: "A", b: "B" };
-  return qr([
-    { label: m.a, data: `deep:${emotionKey}:${m.a}` },
-    { label: m.b, data: `deep:${emotionKey}:${m.b}` },
-    { label: "ほかにもある", text: "自由入力します" }
-  ]);
+  return {
+    type: 'flex' as const,
+    altText: 'どちらが近いですか？',
+    contents: {
+      type: 'bubble' as const,
+      body: {
+        type: 'box' as const,
+        layout: 'vertical' as const,
+        contents: [
+          {
+            type: 'text' as const,
+            text: 'どちらが近いかな？',
+            size: 'lg' as const,
+            weight: 'bold' as const,
+            color: '#333333',
+            align: 'center' as const
+          },
+          {
+            type: 'box',
+            layout: 'vertical' as const,
+            spacing: 'md' as const,
+            margin: 'lg' as const,
+            contents: [
+              {
+                type: 'button',
+                action: {
+                  type: 'postback',
+                  label: m.a,
+                  data: `deep:${emotionKey}:${m.a}`
+                },
+                style: 'primary',
+                color: '#FF8FA3',
+                    height: 'md' as const,
+                margin: 'sm' as const
+              },
+              {
+                type: 'button',
+                action: {
+                  type: 'postback',
+                  label: m.b,
+                  data: `deep:${emotionKey}:${m.b}`
+                },
+                style: 'primary',
+                color: '#FF8FA3',
+                    height: 'md' as const,
+                margin: 'sm' as const
+              },
+              {
+                type: 'button',
+                action: {
+                      type: 'message' as const,
+                  label: 'ほかにもある',
+                  text: '自由入力します'
+                },
+                    style: 'secondary' as const,
+                color: '#E5E7EB',
+                    height: 'md' as const,
+                margin: 'sm' as const
+              }
+            ]
+          }
+        ]
+      }
+    }
+  };
 }
 
 function endOrDiaryQR() {
-  return qr([
-    { label: "今日の1分に残す", data: "diary:save" },
-    { label: "ここで終わる", data: "session:end" }
-  ]);
+  return {
+    type: 'flex' as const,
+    altText: 'どうしますか？',
+    contents: {
+      type: 'bubble' as const,
+      body: {
+        type: 'box' as const,
+        layout: 'vertical' as const,
+        contents: [
+          {
+            type: 'text' as const,
+            text: 'どうしますか？',
+            size: 'lg' as const,
+            weight: 'bold' as const,
+            color: '#333333',
+            align: 'center' as const
+          },
+          {
+            type: 'box',
+            layout: 'vertical' as const,
+            spacing: 'md' as const,
+            margin: 'lg' as const,
+            contents: [
+              {
+                type: 'button',
+                action: {
+                  type: 'postback',
+                  label: '📝 今日の1分に残す',
+                  data: 'diary:save'
+                },
+                style: 'primary',
+                color: '#4CAF50',
+                    height: 'md' as const,
+                margin: 'sm' as const
+              },
+              {
+                type: 'button',
+                action: {
+                  type: 'postback',
+                  label: '👋 ここで終わる',
+                  data: 'session:end'
+                },
+                    style: 'secondary' as const,
+                color: '#9E9E9E',
+                    height: 'md' as const,
+                margin: 'sm' as const
+              }
+            ]
+          }
+        ]
+      }
+    }
+  };
 }
 
 async function handleImage(event: MessageEvent){
@@ -168,12 +385,14 @@ export async function POST(req: NextRequest) {
 
         // 新規セッション開始時は感情アイコンだけ出す
         if (isNew) {
-          // より短いメッセージでクイックリプライを送信
+          // テキストメッセージとFlexメッセージを分けて送信
           await lineClient.replyMessage(event.replyToken, {
-            type: 'text',
-            text: 'こんにちは！いまの気分は？',
-            ...emotionQuickReply()
+            type: 'text' as const,
+            text: 'こんにちは！'
           } as any);
+          
+          // Flexメッセージを別途送信
+          await lineClient.pushMessage(userId, emotionQuickReply() as any);
           continue;
         }
 
@@ -192,11 +411,14 @@ export async function POST(req: NextRequest) {
             };
             const selectedEmotion = emotionLabels[emotionKey as keyof typeof emotionLabels] || emotionKey;
             
+            // 確認メッセージを送信
             await lineClient.replyMessage(event.replyToken, {
-              type: 'text',
-              text: `${selectedEmotion}を選んだんだね。もう少し詳しく教えてもらえる？どちらが近いかな？`,
-              ...deepeningQuickReply(emotionKey)
+              type: 'text' as const,
+              text: `${selectedEmotion}を選んだんだね。もう少し詳しく教えてもらえる？`
             } as any);
+            
+            // Flexメッセージを別途送信
+            await lineClient.pushMessage(userId, deepeningQuickReply(emotionKey) as any);
             continue;
           }
           if (data.startsWith('deep:')) {
@@ -205,7 +427,7 @@ export async function POST(req: NextRequest) {
             
             // 選択内容の確認メッセージを送信
             await lineClient.replyMessage(event.replyToken, {
-              type: 'text',
+              type: 'text' as const,
               text: `「${choice}」について聞かせてくれてありがとう。`
             } as any);
             
@@ -232,18 +454,20 @@ export async function POST(req: NextRequest) {
               insight = comp.choices?.[0]?.message?.content?.trim() ?? '';
             }
 
-            // 傾聴応答を別のメッセージとして送信
+            // 傾聴応答を送信
             await lineClient.pushMessage(userId, {
-              type: 'text',
-              text: [base, insight].filter(Boolean).join('\n'),
-              ...endOrDiaryQR()
+              type: 'text' as const,
+              text: [base, insight].filter(Boolean).join('\n')
             } as any);
+            
+            // Flexメッセージを別途送信
+            await lineClient.pushMessage(userId, endOrDiaryQR() as any);
             continue;
           }
           if (data === 'diary:save') {
             // 最後の整理をそのまま保存する簡易版（詳細は /api/diary/create に出す場合はここでフェッチ）
             await lineClient.replyMessage(event.replyToken, {
-              type: 'text',
+              type: 'text' as const,
               text: '今日の1分にメモしたよ。ここで終わる？それとも続ける？',
               ...qr([{ label: "つづける", data: "session:cont" }, { label: "ここで終わる", data: "session:end" }])
             } as any);
@@ -252,17 +476,19 @@ export async function POST(req: NextRequest) {
           if (data === 'session:end') {
             await endSession(session.id);
             await lineClient.replyMessage(event.replyToken, {
-              type: 'text',
+              type: 'text' as const,
               text: 'ここで一区切りにするね。おつかれさま。'
             } as any);
             continue;
           }
           if (data === 'session:cont') {
             await lineClient.replyMessage(event.replyToken, {
-              type: 'text',
-              text: 'OK。続けよう。',
-              ...emotionQuickReply()
+              type: 'text' as const,
+              text: 'OK。続けよう。'
             } as any);
+            
+            // Flexメッセージを別途送信
+            await lineClient.pushMessage(userId, emotionQuickReply() as any);
             continue;
           }
         }
@@ -274,11 +500,14 @@ export async function POST(req: NextRequest) {
           // 自由入力の場合は従来の傾聴応答
           const base = await generateReflectiveCore(text);
 
+          // 傾聴応答を送信
           await lineClient.replyMessage(event.replyToken, {
-            type: 'text',
-            text: base,
-            ...endOrDiaryQR()
+            type: 'text' as const,
+            text: base
           } as any);
+          
+          // Flexメッセージを別途送信
+          await lineClient.pushMessage(userId, endOrDiaryQR() as any);
           continue;
         }
 
