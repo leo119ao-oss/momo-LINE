@@ -422,17 +422,16 @@ export async function POST(req: NextRequest) {
             continue;
           }
           if (data.startsWith('deep:')) {
-            const [, emotionKey, choice] = data.split(':');
-            const userText = `${emotionKey}:${choice}`;
-            
-            // 選択内容の確認メッセージを送信
-            await lineClient.replyMessage(event.replyToken, {
-              type: 'text' as const,
-              text: `「${choice}」について聞かせてくれてありがとう。`
-            } as any);
-            
+            try {
+              const [, emotionKey, choice] = data.split(':');
+              const userText = `${emotionKey}:${choice}`;
+              
+              console.log(`[WEBHOOK] Processing deep postback: emotionKey=${emotionKey}, choice=${choice}`);
+              
             // 傾聴応答を生成
+            console.log('[WEBHOOK] Generating reflective response...');
             const base = await generateReflectiveCore(userText);
+            console.log('[WEBHOOK] Generated reflective response:', base.substring(0, 100) + '...');
 
             const gate = shouldAddInsightCue(userText, {
               hasEmotionSelected: true,
@@ -442,6 +441,7 @@ export async function POST(req: NextRequest) {
 
             let insight = '';
             if (gate.ok) {
+              console.log('[WEBHOOK] Generating insight cue...');
               const comp = await openai.chat.completions.create({
                 model: 'gpt-4o-mini',
                 temperature: 0.3,
@@ -452,17 +452,49 @@ export async function POST(req: NextRequest) {
                 timeout: (Number(process.env.GEN_TIMEOUT_SECONDS ?? 8) * 1000)
               } as any);
               insight = comp.choices?.[0]?.message?.content?.trim() ?? '';
+              console.log('[WEBHOOK] Generated insight:', insight);
             }
 
-            // 傾聴応答を送信
-            await lineClient.pushMessage(userId, {
+            // 確認メッセージ + 傾聴応答を1つのメッセージで送信
+            const fullResponse = `「${choice}」について聞かせてくれてありがとう。\n\n${[base, insight].filter(Boolean).join('\n')}`;
+            
+            console.log('[WEBHOOK] Sending combined response...');
+            await lineClient.replyMessage(event.replyToken, {
               type: 'text' as const,
-              text: [base, insight].filter(Boolean).join('\n')
+              text: fullResponse
             } as any);
             
-            // Flexメッセージを別途送信
+            // 少し遅延してからFlexメッセージを送信（レート制限回避）
+            console.log('[WEBHOOK] Sending end/diary quick reply after delay...');
+            await new Promise(resolve => setTimeout(resolve, 1000)); // 1秒遅延
+            
             await lineClient.pushMessage(userId, endOrDiaryQR() as any);
-            continue;
+            console.log('[WEBHOOK] Deep postback processing completed successfully');
+              continue;
+            } catch (deepError) {
+              console.error('[WEBHOOK] Error in deep postback processing:', deepError);
+              console.error('[WEBHOOK] Error details:', JSON.stringify(deepError, null, 2));
+              
+              // エラーが発生した場合でも、ユーザーにはエラーメッセージを送信
+              try {
+                await lineClient.replyMessage(event.replyToken, {
+                  type: 'text',
+                  text: 'すみません、処理中にエラーが発生しました。もう一度お試しください。'
+                } as any);
+              } catch (replyError) {
+                console.error('[WEBHOOK] Failed to send error message:', replyError);
+                // リプライも失敗した場合は、pushMessageを試す
+                try {
+                  await lineClient.pushMessage(userId, {
+                    type: 'text',
+                    text: 'すみません、システムエラーが発生しました。しばらく時間をおいてからお試しください。'
+                  } as any);
+                } catch (pushError) {
+                  console.error('[WEBHOOK] Failed to send push error message:', pushError);
+                }
+              }
+              continue;
+            }
           }
           if (data === 'diary:save') {
             // 最後の整理をそのまま保存する簡易版（詳細は /api/diary/create に出す場合はここでフェッチ）
