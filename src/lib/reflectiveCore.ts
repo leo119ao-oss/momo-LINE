@@ -17,7 +17,8 @@ export async function generateReflectiveCore(userText: string): Promise<string> 
     messages: [
       { role: 'system', content: SYSTEM },
       { role: 'user', content: userText }
-    ],
+    ]
+  }, {
     timeout: (Number(process.env.GEN_TIMEOUT_SECONDS ?? 8) * 1000)
   } as any);
   return comp.choices?.[0]?.message?.content?.trim() ?? '受け止めました。';
