@@ -448,7 +448,8 @@ export async function POST(req: NextRequest) {
                 messages: [
                   { role: 'system', content: INSIGHT_CUE_SYSTEM },
                   { role: 'user', content: INSIGHT_CUE_USER(userText) }
-                ],
+                ]
+              }, {
                 timeout: (Number(process.env.GEN_TIMEOUT_SECONDS ?? 8) * 1000)
               } as any);
               insight = comp.choices?.[0]?.message?.content?.trim() ?? '';
