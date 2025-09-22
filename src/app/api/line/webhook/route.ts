@@ -411,10 +411,10 @@ export async function POST(req: NextRequest) {
             };
             const selectedEmotion = emotionLabels[emotionKey as keyof typeof emotionLabels] || emotionKey;
             
-            // 確認メッセージを送信
+            // 自然な確認メッセージを送信
             await lineClient.replyMessage(event.replyToken, {
               type: 'text' as const,
-              text: `${selectedEmotion}を選んだんだね。もう少し詳しく教えてもらえる？`
+              text: `${selectedEmotion}なんですね。どんな感じですか？`
             } as any);
             
             // Flexメッセージを別途送信
@@ -456,21 +456,16 @@ export async function POST(req: NextRequest) {
               console.log('[WEBHOOK] Generated insight:', insight);
             }
 
-            // 確認メッセージ + 傾聴応答を1つのメッセージで送信
-            const fullResponse = `「${choice}」について聞かせてくれてありがとう。\n\n${[base, insight].filter(Boolean).join('\n')}`;
+            // 自然な応答を送信（終了選択は強制しない）
+            const fullResponse = [base, insight].filter(Boolean).join('\n');
             
-            console.log('[WEBHOOK] Sending combined response...');
+            console.log('[WEBHOOK] Sending natural response...');
             await lineClient.replyMessage(event.replyToken, {
               type: 'text' as const,
               text: fullResponse
             } as any);
             
-            // 少し遅延してからFlexメッセージを送信（レート制限回避）
-            console.log('[WEBHOOK] Sending end/diary quick reply after delay...');
-            await new Promise(resolve => setTimeout(resolve, 1000)); // 1秒遅延
-            
-            await lineClient.pushMessage(userId, endOrDiaryQR() as any);
-            console.log('[WEBHOOK] Deep postback processing completed successfully');
+            console.log('[WEBHOOK] Natural conversation flow completed');
               continue;
             } catch (deepError) {
               console.error('[WEBHOOK] Error in deep postback processing:', deepError);
@@ -533,14 +528,11 @@ export async function POST(req: NextRequest) {
           // 自由入力の場合は従来の傾聴応答
           const base = await generateReflectiveCore(text);
 
-          // 傾聴応答を送信
+          // 自然な応答を送信（終了選択は強制しない）
           await lineClient.replyMessage(event.replyToken, {
             type: 'text' as const,
             text: base
           } as any);
-          
-          // Flexメッセージを別途送信
-          await lineClient.pushMessage(userId, endOrDiaryQR() as any);
           continue;
         }
 
