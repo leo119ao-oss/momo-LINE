@@ -2,7 +2,11 @@
 import { supabaseAdmin } from './supabaseAdmin';
 import OpenAI from 'openai';
 import { searchArticles } from './search';
-import { buildInfoPrompt, buildConfirmPrompt, EMPATHY_REFLECTIVE_SYSTEM, EMPATHY_REFLECTIVE_FEWSHOT } from './prompts';
+import { buildInfoPrompt, buildConfirmPrompt, EMPATHY_REFLECTIVE_SYSTEM, EMPATHY_REFLECTIVE_FEWSHOT, NEW_CONVERSATION_FLOW_SYSTEM, EMOTION_CHECK_PROMPT, REASON_HEARING_PROMPT, INSIGHT_PROMPT, DIARY_RECOMMENDATION_PROMPT, ARTICLE_RECOMMENDATION_PROMPT } from './prompts';
+import { detectEmotion, generateReasonQuestion, checkStoryCompleteness, structureStory, type ConversationState, type ConversationStage } from './conversationFlow';
+import { generateInsights, generateDeepeningQuestion } from './insightGenerator';
+import { recommendDiary } from './diaryRecommender';
+import { recommendRelatedArticles } from './articleRecommender';
 import { flags } from '../config/flags';
 import { logEmpathyMeta } from './log';
 import { oneLineWhy } from './rag';
@@ -536,6 +540,188 @@ async function handleInformationSeeking(participant: { id: string; display_name?
 
 /**
  * @JSDoc
+ * 【新規追加】新しい会話フローを処理する関数
+ */
+async function handleNewConversationFlow(
+  participant: { id: string; display_name?: string; contact?: string },
+  text: string
+): Promise<string> {
+  try {
+    // 会話履歴を取得
+    const { data: history } = await supabaseAdmin
+      .from('chat_logs')
+      .select('role, content, created_at')
+      .eq('participant_id', participant.id)
+      .order('created_at', { ascending: true })
+      .limit(20);
+
+    const conversationHistory = (history || []).map(log => ({
+      role: log.role,
+      content: log.content
+    }));
+
+    // 現在の会話状態を取得
+    const conversationState = await getConversationState(participant.id, conversationHistory);
+    
+    // 会話の段階に応じて処理
+    switch (conversationState.stage) {
+      case 'emotion_check':
+        return await handleEmotionCheck(text, conversationState);
+      
+      case 'reason_hearing':
+        return await handleReasonHearing(text, conversationState);
+      
+      case 'insight_generation':
+        return await handleInsightGeneration(text, conversationState);
+      
+      case 'diary_recommendation':
+        return await handleDiaryRecommendation(text, conversationState);
+      
+      case 'article_recommendation':
+        return await handleArticleRecommendation(text, conversationState);
+      
+      default:
+        return await handleEmotionCheck(text, conversationState);
+    }
+  } catch (error) {
+    console.error('New conversation flow failed:', error);
+    return '申し訳ありません、エラーが発生しました。もう一度お試しください。';
+  }
+}
+
+/**
+ * @JSDoc
+ * 【新規追加】会話状態を取得する関数
+ */
+async function getConversationState(participantId: string, conversationHistory: Array<{role: string, content: string}>): Promise<ConversationState> {
+  // 会話の深さを計算
+  const userMessages = conversationHistory.filter(msg => msg.role === 'user');
+  const conversationDepth = userMessages.length;
+  
+  // 最後のメッセージを取得
+  const lastUserMessage = userMessages[userMessages.length - 1]?.content || '';
+  const lastAiMessage = conversationHistory.filter(msg => msg.role === 'assistant').slice(-1)[0]?.content || '';
+  
+  // 会話の段階を判定
+  let stage: ConversationStage = 'emotion_check';
+  
+  if (conversationDepth >= 1 && !lastUserMessage.includes('感情')) {
+    stage = 'reason_hearing';
+  }
+  
+  if (conversationDepth >= 2 && lastAiMessage.includes('示唆')) {
+    stage = 'insight_generation';
+  }
+  
+  if (conversationDepth >= 4 && checkStoryCompleteness(conversationHistory)) {
+    stage = 'diary_recommendation';
+  }
+  
+  return {
+    stage,
+    conversationDepth,
+    lastUserMessage,
+    lastAiMessage
+  };
+}
+
+/**
+ * @JSDoc
+ * 【新規追加】感情確認の処理
+ */
+async function handleEmotionCheck(text: string, state: ConversationState): Promise<string> {
+  const emotionResult = await detectEmotion(text);
+  
+  if (emotionResult.confidence > 0.5) {
+    const reasonQuestion = generateReasonQuestion(emotionResult.emotion, text);
+    return reasonQuestion;
+  } else {
+    return EMOTION_CHECK_PROMPT;
+  }
+}
+
+/**
+ * @JSDoc
+ * 【新規追加】理由ヒアリングの処理
+ */
+async function handleReasonHearing(text: string, state: ConversationState): Promise<string> {
+  // 感情を再検出
+  const emotionResult = await detectEmotion(state.lastUserMessage);
+  
+  // 示唆を生成
+  const insights = await generateInsights(emotionResult.emotion, text, state.lastUserMessage);
+  
+  if (insights.insights.length > 0) {
+    return INSIGHT_PROMPT(emotionResult.emotion, text, insights.insights);
+  } else {
+    return 'その気持ち、よく分かります。もう少し詳しく教えてもらえる？';
+  }
+}
+
+/**
+ * @JSDoc
+ * 【新規追加】示唆生成の処理
+ */
+async function handleInsightGeneration(text: string, state: ConversationState): Promise<string> {
+  // 会話の完全性をチェック
+  const { data: history } = await supabaseAdmin
+    .from('chat_logs')
+    .select('role, content')
+    .eq('participant_id', state.conversationDepth.toString())
+    .order('created_at', { ascending: true })
+    .limit(10);
+  
+  const conversationHistory = (history || []).map(log => ({
+    role: log.role,
+    content: log.content
+  }));
+  
+  if (checkStoryCompleteness(conversationHistory)) {
+    // 日記推奨に移行
+    const diaryRecommendation = await recommendDiary(conversationHistory, state.conversationDepth.toString());
+    
+    if (diaryRecommendation.shouldRecommend) {
+      return DIARY_RECOMMENDATION_PROMPT(diaryRecommendation.structure);
+    }
+  }
+  
+  // 深堀り質問を生成
+  const deepeningQuestion = await generateDeepeningQuestion(
+    state.lastUserMessage,
+    text,
+    state.lastAiMessage
+  );
+  
+  return deepeningQuestion;
+}
+
+/**
+ * @JSDoc
+ * 【新規追加】日記推奨の処理
+ */
+async function handleDiaryRecommendation(text: string, state: ConversationState): Promise<string> {
+  // 日記が完成した場合、関連記事を推薦
+  if (text.includes('完成') || text.includes('書いた') || text.includes('終わった')) {
+    const articleRecommendation = await recommendRelatedArticles(text, state.conversationDepth.toString());
+    
+    if (articleRecommendation.articles.length > 0) {
+      return ARTICLE_RECOMMENDATION_PROMPT(articleRecommendation.articles);
+    }
+  }
+  
+  return '日記を書いてみて、どんな気持ちになりましたか？';
+}
+
+/**
+ * @JSDoc
+ * 【新規追加】記事推薦の処理
+ */
+async function handleArticleRecommendation(text: string, state: ConversationState): Promise<string> {
+  return '他にも何かお話したいことはありますか？';
+}
+
+/**
+ * @JSDoc
  * 【変更】メインのメッセージ処理関数。意図判別に応じて処理を振り分ける。
  */
 export async function handleTextMessage(userId: string, text: string): Promise<string> {
@@ -658,71 +844,79 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
     // 同意/拒否でない普通の文章 → 何もしない（通常フロー続行）
   }
 
-  // ユーザーの意図を判別
-  const rawIntent = await detectUserIntent(text);
-  const intent = chooseMode(rawIntent, text);
-  lastMode = intent;
-  console.log(`[Intent] User message: "${text}" -> Raw: ${rawIntent} -> Final: ${intent}`);
-  
-  // デバッグ用：意図検出の詳細ログ
-  console.log(`[Debug] Intent detection - Text: "${text}", Raw: ${rawIntent}, Final: ${intent}`);
+  // 新しい会話フローを使用するかどうかを判定
+  const shouldUseNewFlow = true; // フラグで制御可能
   
   let aiMessage: string;
-
-  if (intent === 'information_seeking') {
-    // 【質問の場合】RAG処理を呼び出す
-    aiMessage = await handleInformationSeeking(participant, text);
+  
+  if (shouldUseNewFlow) {
+    // 【新しい会話フロー】感情確認→理由ヒアリング→示唆→日記推奨→記事紹介
+    console.log('Using new conversation flow...');
+    aiMessage = await handleNewConversationFlow(participant, text);
   } else {
-    // 【つぶやきの場合】従来のカウンセラー応答
-    console.log('Handling personal reflection intent...');
+    // 【従来の処理】意図判別に応じて処理を振り分け
+    const rawIntent = await detectUserIntent(text);
+    const intent = chooseMode(rawIntent, text);
+    lastMode = intent;
+    console.log(`[Intent] User message: "${text}" -> Raw: ${rawIntent} -> Final: ${intent}`);
     
-    // テレメトリログを出力
-    logRagEvent({
-      rev: appRev(),
-      intent: "empathy",
-      q: text,
-      topK: 0,
-      minSim: 0,
-      rawCount: 0,
-      keptCount: 0,
-      lowConfFallback: false
-    });
-    const { data: history } = await supabaseAdmin
-      .from('chat_logs')
-      .select('role, content')
-      .eq('participant_id', participant.id)
-      .order('created_at', { ascending: false })
-      .limit(12); // より多くの会話履歴を取得
-    
-    const messages = (history || [])
-      .reverse()
-      .map(log => ({
-        role: log.role === 'ai' ? 'assistant' : 'user',
-        content: log.content
-      })) as { role: 'user' | 'assistant'; content: string }[];
+    // デバッグ用：意図検出の詳細ログ
+    console.log(`[Debug] Intent detection - Text: "${text}", Raw: ${rawIntent}, Final: ${intent}`);
 
-    // 現在のユーザーメッセージを追加
-    messages.push({ role: 'user', content: text });
+    if (intent === 'information_seeking') {
+      // 【質問の場合】RAG処理を呼び出す
+      aiMessage = await handleInformationSeeking(participant, text);
+    } else {
+      // 【つぶやきの場合】従来のカウンセラー応答
+      console.log('Handling personal reflection intent...');
+      
+      // テレメトリログを出力
+      logRagEvent({
+        rev: appRev(),
+        intent: "empathy",
+        q: text,
+        topK: 0,
+        minSim: 0,
+        rawCount: 0,
+        keptCount: 0,
+        lowConfFallback: false
+      });
+      const { data: history } = await supabaseAdmin
+        .from('chat_logs')
+        .select('role, content')
+        .eq('participant_id', participant.id)
+        .order('created_at', { ascending: false })
+        .limit(12); // より多くの会話履歴を取得
+      
+      const messages = (history || [])
+        .reverse()
+        .map(log => ({
+          role: log.role === 'ai' ? 'assistant' : 'user',
+          content: log.content
+        })) as { role: 'user' | 'assistant'; content: string }[];
 
-    // 会話の流れを分析
-    const { conversationFlow } = await getConversationContext(participant.id);
-    
-    // 不明確なメッセージの場合は聞き返しを優先
-    const clarificationResponse = await checkForClarification(text, conversationFlow);
-    if (clarificationResponse) {
-      return clarificationResponse;
-    }
+      // 現在のユーザーメッセージを追加
+      messages.push({ role: 'user', content: text });
 
-      const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
-    
-    // 会話の継続性を考慮したシステムプロンプト
-    const conversationContext = conversationFlow.isDeepConversation ? 
-      `\n[会話の流れ]\n前回のテーマ: ${conversationFlow.lastTheme || '新しい話題'}\n会話の深さ: ${conversationFlow.messageCount}回のやり取り\n前回のAI応答: ${conversationFlow.lastAiMessage}` : '';
-    
-      // 傾聴スタイルの切り替え
-      const system = flags.empathyStyle === "reflective"
-        ? EMPATHY_REFLECTIVE_SYSTEM
-        : `${MOMO_VOICE}${profile}${conversationContext}
+      // 会話の流れを分析
+      const { conversationFlow } = await getConversationContext(participant.id);
+      
+      // 不明確なメッセージの場合は聞き返しを優先
+      const clarificationResponse = await checkForClarification(text, conversationFlow);
+      if (clarificationResponse) {
+        return clarificationResponse;
+      }
+
+        const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
+      
+      // 会話の継続性を考慮したシステムプロンプト
+      const conversationContext = conversationFlow.isDeepConversation ? 
+        `\n[会話の流れ]\n前回のテーマ: ${conversationFlow.lastTheme || '新しい話題'}\n会話の深さ: ${conversationFlow.messageCount}回のやり取り\n前回のAI応答: ${conversationFlow.lastAiMessage}` : '';
+      
+        // 傾聴スタイルの切り替え
+        const system = flags.empathyStyle === "reflective"
+          ? EMPATHY_REFLECTIVE_SYSTEM
+          : `${MOMO_VOICE}${profile}${conversationContext}
 
 [ルール]
 - 会話の流れを意識し、前回の内容に自然に繋げる。
@@ -737,24 +931,25 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
 - 箇条書きは日本語の点を使う。
 `.trim();
 
-    // Few-shot例の追加（reflectiveモードの場合）
-    let messagesWithExamples = messages;
-    if (flags.empathyStyle === "reflective" && EMPATHY_REFLECTIVE_FEWSHOT.length > 0) {
-      const fewShotMessages = EMPATHY_REFLECTIVE_FEWSHOT.slice(0, 2).flatMap(example => [
-        { role: 'user' as const, content: example.user },
-        { role: 'assistant' as const, content: example.assistant }
-      ]);
-      messagesWithExamples = [...fewShotMessages, ...messages];
-    }
+      // Few-shot例の追加（reflectiveモードの場合）
+      let messagesWithExamples = messages;
+      if (flags.empathyStyle === "reflective" && EMPATHY_REFLECTIVE_FEWSHOT.length > 0) {
+        const fewShotMessages = EMPATHY_REFLECTIVE_FEWSHOT.slice(0, 2).flatMap(example => [
+          { role: 'user' as const, content: example.user },
+          { role: 'assistant' as const, content: example.assistant }
+        ]);
+        messagesWithExamples = [...fewShotMessages, ...messages];
+      }
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [{ role: 'system', content: system }, ...messagesWithExamples],
-    });
-    aiMessage = completion.choices[0].message.content || 'うんうん、そうなんだね。';
-    
-    // 傾聴メタログを出力
-    logEmpathyMeta(text, aiMessage);
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'system', content: system }, ...messagesWithExamples],
+      });
+      aiMessage = completion.choices[0].message.content || 'うんうん、そうなんだね。';
+      
+      // 傾聴メタログを出力
+      logEmpathyMeta(text, aiMessage);
+    }
   }
 
   // AIの応答をログに保存
