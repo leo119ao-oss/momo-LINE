@@ -417,22 +417,9 @@ export async function POST(req: NextRequest) {
             };
             const selectedEmotion = emotionLabels[emotionKey as keyof typeof emotionLabels] || emotionKey;
             
-            // 感情選択時にユーザー側からメッセージを送信
+            // 感情選択時の応答を生成
             try {
-              // ユーザーが選択した感情をユーザー側のメッセージとして送信
-              await lineClient.replyMessage(event.replyToken, {
-                type: 'text' as const,
-                text: selectedEmotion
-              } as any);
-              
-              // 少し待ってからAIの応答を生成
-              console.log('[WEBHOOK] Generating insights for emotion:', emotionKey);
-              const { searchArticles } = await import('@/lib/search');
-              const { generateInsights } = await import('@/lib/insightGenerator');
-              
-              // 感情に基づいて検索クエリを生成
-              const searchQuery = `${emotionKey} 子育て 母親`;
-              const articles = await searchArticles(searchQuery);
+              console.log('[WEBHOOK] Processing emotion selection:', emotionKey);
               
               // 傾聴の応答を生成
               let response = '';
@@ -453,45 +440,39 @@ export async function POST(req: NextRequest) {
                 response = `${selectedEmotion}という気持ちなんですね。`;
               }
               
-              if (articles.length > 0) {
-                console.log('[WEBHOOK] Found articles, generating insights...');
-                const insights = await generateInsights(emotionKey, '', '');
+              // RAG検索を実行して示唆を生成
+              try {
+                const { searchArticles } = await import('@/lib/search');
+                const { generateInsights } = await import('@/lib/insightGenerator');
                 
-                if (insights.insights.length > 0) {
-                  response += `\n\nお母さん大学の記事を参考に、こんな視点はいかがでしょうか：\n${insights.insights.map(i => `・${i}`).join('\n')}`;
+                const searchQuery = `${emotionKey} 子育て 母親`;
+                const articles = await searchArticles(searchQuery);
+                
+                if (articles.length > 0) {
+                  console.log('[WEBHOOK] Found articles, generating insights...');
+                  const insights = await generateInsights(emotionKey, '', '');
+                  
+                  if (insights.insights.length > 0) {
+                    response += `\n\nお母さん大学の記事を参考に、こんな視点はいかがでしょうか：\n${insights.insights.map(i => `・${i}`).join('\n')}`;
+                  }
                 }
+              } catch (ragError) {
+                console.error('[WEBHOOK] RAG search failed:', ragError);
               }
               
-              // AIの応答を送信（少し待ってから）
-              setTimeout(async () => {
-                try {
-                  await lineClient.pushMessage(userId, {
-                    type: 'text' as const,
-                    text: response
-                  } as any);
-                } catch (pushError) {
-                  console.error('[WEBHOOK] Error sending push message:', pushError);
-                }
-              }, 1000);
-              
-            } catch (error) {
-              console.error('[WEBHOOK] Error generating insights:', error);
-              // エラー時も自動メッセージ送信
+              // AIの応答を送信
               await lineClient.replyMessage(event.replyToken, {
                 type: 'text' as const,
-                text: selectedEmotion
+                text: response
               } as any);
               
-              setTimeout(async () => {
-                try {
-                  await lineClient.pushMessage(userId, {
-                    type: 'text' as const,
-                    text: `${selectedEmotion}を選んでくれたんですね。その気持ち、よく分かります。`
-                  } as any);
-                } catch (pushError) {
-                  console.error('[WEBHOOK] Error sending push message:', pushError);
-                }
-              }, 1000);
+            } catch (error) {
+              console.error('[WEBHOOK] Error processing emotion selection:', error);
+              // エラー時の応答
+              await lineClient.replyMessage(event.replyToken, {
+                type: 'text' as const,
+                text: `${selectedEmotion}を選んでくれたんですね。その気持ち、よく分かります。`
+              } as any);
             }
             continue;
           }
