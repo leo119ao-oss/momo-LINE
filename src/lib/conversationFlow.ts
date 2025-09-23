@@ -109,8 +109,13 @@ export function checkStoryCompleteness(conversationHistory: Array<{role: string,
   const userMessages = conversationHistory.filter(msg => msg.role === 'user');
   const totalLength = userMessages.reduce((sum, msg) => sum + msg.content.length, 0);
   
-  // 一定以上の情報量がある場合に起承転結が満たされたと判定
-  return userMessages.length >= 4 && totalLength >= 100;
+  // より厳格な条件で起承転結を判定
+  // 1. 最低6回のやり取り
+  // 2. 合計200文字以上の内容
+  // 3. 最後のメッセージが20文字以上
+  const lastMessageLength = userMessages[userMessages.length - 1]?.content.length || 0;
+  
+  return userMessages.length >= 6 && totalLength >= 200 && lastMessageLength >= 20;
 }
 
 // 起承転結の構造化
