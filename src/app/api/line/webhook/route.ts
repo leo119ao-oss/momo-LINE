@@ -13,6 +13,7 @@ import { DEEPENING_BY_EMOTION } from '@/config/conversationMap';
 import { shouldAddInsightCue } from '@/lib/style/insightCue';
 import { generateReflectiveCore } from '@/lib/reflectiveCore';
 import { INSIGHT_CUE_SYSTEM, INSIGHT_CUE_USER } from '@/lib/prompts.insight';
+import { checkStoryCompleteness } from '@/lib/conversationFlow';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
@@ -154,7 +155,7 @@ function deepeningQuickReply(emotionKey: string) {
         contents: [
           {
             type: 'text' as const,
-            text: 'どちらが近いかな？',
+            text: 'どんなことがその気持ちにさせてる？',
             size: 'xl' as const,
             weight: 'bold' as const,
             color: '#333333',
@@ -416,10 +417,10 @@ export async function POST(req: NextRequest) {
             };
             const selectedEmotion = emotionLabels[emotionKey as keyof typeof emotionLabels] || emotionKey;
             
-            // 自然な確認メッセージを送信
+            // 感情選択の確認メッセージを送信
             await lineClient.replyMessage(event.replyToken, {
               type: 'text' as const,
-              text: `${selectedEmotion}なんですね。どんな感じですか？`
+              text: `${selectedEmotion}を選んでくれたんですね。その気持ちについて、もう少し詳しく教えてもらえる？`
             } as any);
             
             // Flexメッセージを別途送信
@@ -438,31 +439,59 @@ export async function POST(req: NextRequest) {
             const base = await generateReflectiveCore(userText);
             console.log('[WEBHOOK] Generated reflective response:', base.substring(0, 100) + '...');
 
-            const gate = shouldAddInsightCue(userText, {
-              hasEmotionSelected: true,
-              hasDeepeningChoice: true,
-              emotion: emotionKey
-            });
-
+            // RAG検索を実行して示唆を生成
             let insight = '';
-            if (gate.ok) {
-              console.log('[WEBHOOK] Generating insight cue...');
-              const comp = await openai.chat.completions.create({
-                model: 'gpt-4o-mini',
-                temperature: 0.3,
-                messages: [
-                  { role: 'system', content: INSIGHT_CUE_SYSTEM },
-                  { role: 'user', content: INSIGHT_CUE_USER(userText) }
-                ]
-              }, {
-                timeout: (Number(process.env.GEN_TIMEOUT_SECONDS ?? 8) * 1000)
-              } as any);
-              insight = comp.choices?.[0]?.message?.content?.trim() ?? '';
-              console.log('[WEBHOOK] Generated insight:', insight);
+            try {
+              console.log('[WEBHOOK] Starting RAG search for insights...');
+              const { searchArticles } = await import('@/lib/search');
+              const { generateInsights } = await import('@/lib/insightGenerator');
+              
+              // 感情と理由から検索クエリを生成
+              const searchQuery = `${emotionKey} ${choice} 子育て 母親`;
+              const articles = await searchArticles(searchQuery);
+              
+              if (articles.length > 0) {
+                console.log('[WEBHOOK] Found articles, generating insights...');
+                const insights = await generateInsights(emotionKey, choice, userText);
+                
+                if (insights.insights.length > 0) {
+                  insight = `お母さん大学の記事を参考に、こんな視点はいかがでしょうか：\n${insights.insights.map(i => `・${i}`).join('\n')}`;
+                  console.log('[WEBHOOK] Generated insights:', insight);
+                }
+              } else {
+                console.log('[WEBHOOK] No articles found, using fallback insight');
+                insight = 'その気持ち、よく分かります。もう少し詳しく教えてもらえる？';
+              }
+            } catch (ragError) {
+              console.error('[WEBHOOK] RAG search failed:', ragError);
+              insight = 'その気持ち、よく分かります。もう少し詳しく教えてもらえる？';
             }
 
+            // 会話の完全性をチェック
+            const { data: conversationHistory } = await supabaseAdmin
+              .from('chat_logs')
+              .select('role, content')
+              .eq('participant_id', participant.id)
+              .order('created_at', { ascending: true })
+              .limit(10);
+            
+            const isComplete = checkStoryCompleteness(conversationHistory || []);
+            
             // 自然な応答を送信（終了選択は強制しない）
-            const fullResponse = [base, insight].filter(Boolean).join('\n');
+            let fullResponse = [base, insight].filter(Boolean).join('\n');
+            
+            // 会話が完全な場合は日記推奨を追加
+            if (isComplete) {
+              const { recommendDiary } = await import('@/lib/diaryRecommender');
+              const diaryRecommendation = await recommendDiary(conversationHistory || [], participant.id);
+              
+              if (diaryRecommendation.shouldRecommend) {
+                fullResponse += `\n\n${diaryRecommendation.recommendationMessage}`;
+                if (diaryRecommendation.liffUrl) {
+                  fullResponse += `\n\n日記を書く: ${diaryRecommendation.liffUrl}`;
+                }
+              }
+            }
             
             console.log('[WEBHOOK] Sending natural response...');
             await lineClient.replyMessage(event.replyToken, {
@@ -532,19 +561,33 @@ export async function POST(req: NextRequest) {
 
           console.log(`[WEBHOOK] Text message received: "${text}"`);
 
-          // 自由入力の場合は従来の傾聴応答
-          const base = await generateReflectiveCore(text);
-
-          // 自然な応答を送信
-          await lineClient.replyMessage(event.replyToken, {
-            type: 'text' as const,
-            text: base
-          } as any);
-          
-          // 感情選択ボタンも表示（ユーザーが新しい感情を表現できるように）
-          console.log('[WEBHOOK] Showing emotion buttons for continued conversation');
-          await lineClient.pushMessage(userId, emotionQuickReply() as any);
-          continue;
+          // 新しい会話フローを使用
+          try {
+            const aiMessage = await handleTextMessage(userId, text);
+            
+            // 自然な応答を送信
+            await lineClient.replyMessage(event.replyToken, {
+              type: 'text' as const,
+              text: aiMessage
+            } as any);
+            
+            // 感情選択ボタンも表示（ユーザーが新しい感情を表現できるように）
+            console.log('[WEBHOOK] Showing emotion buttons for continued conversation');
+            await lineClient.pushMessage(userId, emotionQuickReply() as any);
+            continue;
+          } catch (textError) {
+            console.error('[WEBHOOK] Error processing text message:', textError);
+            
+            // エラーが発生した場合は従来の傾聴応答を使用
+            const base = await generateReflectiveCore(text);
+            await lineClient.replyMessage(event.replyToken, {
+              type: 'text' as const,
+              text: base
+            } as any);
+            
+            await lineClient.pushMessage(userId, emotionQuickReply() as any);
+            continue;
+          }
         }
 
         // 他タイプ（スタンプ等）はミニ応答のみ
