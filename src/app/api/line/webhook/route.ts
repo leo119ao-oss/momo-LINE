@@ -63,7 +63,7 @@ function emotionQuickReply() {
                     type: 'button' as const,
                     action: {
                       type: 'postback' as const,
-                      label: '😊 うれしい',
+                      label: '😊',
                       data: 'emotion:smile'
                     },
                     style: 'primary' as const,
@@ -74,7 +74,7 @@ function emotionQuickReply() {
                     type: 'button' as const,
                     action: {
                       type: 'postback' as const,
-                      label: '😐 ふつう',
+                      label: '😐',
                       data: 'emotion:neutral'
                     },
                     style: 'primary' as const,
@@ -85,7 +85,7 @@ function emotionQuickReply() {
                     type: 'button' as const,
                     action: {
                       type: 'postback' as const,
-                      label: '😩 つかれた',
+                      label: '😩',
                       data: 'emotion:tired'
                     },
                     style: 'primary' as const,
@@ -103,7 +103,7 @@ function emotionQuickReply() {
                     type: 'button' as const,
                     action: {
                       type: 'postback' as const,
-                      label: '😡 いらいら',
+                      label: '😡',
                       data: 'emotion:anger'
                     },
                     style: 'primary' as const,
@@ -114,7 +114,7 @@ function emotionQuickReply() {
                     type: 'button' as const,
                     action: {
                       type: 'postback' as const,
-                      label: '😢 かなしい',
+                      label: '😢',
                       data: 'emotion:sad'
                     },
                     style: 'primary' as const,
@@ -125,7 +125,7 @@ function emotionQuickReply() {
                     type: 'button' as const,
                     action: {
                       type: 'postback' as const,
-                      label: '🤔 かんがえる',
+                      label: '🤔',
                       data: 'emotion:think'
                     },
                     style: 'primary' as const,
@@ -417,14 +417,43 @@ export async function POST(req: NextRequest) {
             };
             const selectedEmotion = emotionLabels[emotionKey as keyof typeof emotionLabels] || emotionKey;
             
-            // 感情選択の確認メッセージを送信
-            await lineClient.replyMessage(event.replyToken, {
-              type: 'text' as const,
-              text: `${selectedEmotion}を選んでくれたんですね。その気持ちについて、もう少し詳しく教えてもらえる？`
-            } as any);
-            
-            // Flexメッセージを別途送信
-            await lineClient.pushMessage(userId, deepeningQuickReply(emotionKey) as any);
+            // 感情選択後は直接示唆を提供
+            try {
+              console.log('[WEBHOOK] Generating insights for emotion:', emotionKey);
+              const { searchArticles } = await import('@/lib/search');
+              const { generateInsights } = await import('@/lib/insightGenerator');
+              
+              // 感情に基づいて検索クエリを生成
+              const searchQuery = `${emotionKey} 子育て 母親`;
+              const articles = await searchArticles(searchQuery);
+              
+              let response = `${selectedEmotion}を選んでくれたんですね。`;
+              
+              if (articles.length > 0) {
+                console.log('[WEBHOOK] Found articles, generating insights...');
+                const insights = await generateInsights(emotionKey, '', '');
+                
+                if (insights.insights.length > 0) {
+                  response += `\n\nお母さん大学の記事を参考に、こんな視点はいかがでしょうか：\n${insights.insights.map(i => `・${i}`).join('\n')}`;
+                } else {
+                  response += `\n\nその気持ち、よく分かります。どんなことが一番気になってる？`;
+                }
+              } else {
+                response += `\n\nその気持ち、よく分かります。どんなことが一番気になってる？`;
+              }
+              
+              await lineClient.replyMessage(event.replyToken, {
+                type: 'text' as const,
+                text: response
+              } as any);
+              
+            } catch (error) {
+              console.error('[WEBHOOK] Error generating insights:', error);
+              await lineClient.replyMessage(event.replyToken, {
+                type: 'text' as const,
+                text: `${selectedEmotion}を選んでくれたんですね。その気持ち、よく分かります。どんなことが一番気になってる？`
+              } as any);
+            }
             continue;
           }
           if (data.startsWith('deep:')) {
@@ -492,12 +521,15 @@ export async function POST(req: NextRequest) {
                 }
               }
             } else {
-              // 会話が不完全な場合は深堀りを促す
+              // 会話が不完全な場合は適切な深堀りを促す
               const userMessages = (conversationHistory || []).filter(msg => msg.role === 'user');
               const totalLength = userMessages.reduce((sum, msg) => sum + msg.content.length, 0);
               
-              if (userMessages.length < 6 || totalLength < 200) {
-                fullResponse += `\n\nもう少し詳しく教えてもらえる？どんなことが一番気になってる？`;
+              // より自然な深堀り質問
+              if (userMessages.length < 3) {
+                fullResponse += `\n\nどんなことが一番気になってる？`;
+              } else if (userMessages.length < 6 || totalLength < 200) {
+                fullResponse += `\n\nもう少し詳しく教えてもらえる？`;
               }
             }
             
