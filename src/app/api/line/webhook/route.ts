@@ -421,23 +421,23 @@ export async function POST(req: NextRequest) {
             try {
               console.log('[WEBHOOK] Processing emotion selection:', emotionKey);
               
-              // 傾聴の応答を生成
+              // 傾聴の応答と適切な問いかけを生成
               let response = '';
               
               if (emotionKey === 'tired') {
-                response = '疲れているんですね。';
+                response = '疲れているんですね。どんなことが一番疲れさせてる？';
               } else if (emotionKey === 'smile') {
-                response = 'うれしい気持ちなんですね。';
+                response = 'うれしい気持ちなんですね。どんなことがうれしくさせてる？';
               } else if (emotionKey === 'neutral') {
-                response = 'ふつうの気持ちなんですね。';
+                response = 'ふつうの気持ちなんですね。今日はどんな一日だった？';
               } else if (emotionKey === 'anger') {
-                response = 'いらいらしているんですね。';
+                response = 'いらいらしているんですね。どんなことがイライラさせてる？';
               } else if (emotionKey === 'sad') {
-                response = 'かなしい気持ちなんですね。';
+                response = 'かなしい気持ちなんですね。どんなことが悲しくさせてる？';
               } else if (emotionKey === 'think') {
-                response = '考えているんですね。';
+                response = '考えているんですね。どんなことを考えてる？';
               } else {
-                response = `${selectedEmotion}という気持ちなんですね。`;
+                response = `${selectedEmotion}という気持ちなんですね。どんなことがその気持ちにさせてる？`;
               }
               
               // RAG検索を実行して示唆を生成
@@ -453,7 +453,7 @@ export async function POST(req: NextRequest) {
                   const insights = await generateInsights(emotionKey, '', '');
                   
                   if (insights.insights.length > 0) {
-                    response += `\n\nお母さん大学の記事を参考に、こんな視点はいかがでしょうか：\n${insights.insights.map(i => `・${i}`).join('\n')}`;
+                    response += `\n\nお母さん大学の記事を参考に、こんな視点はいかがでしょうか：\n${insights.insights.map(i => `・${i}`).join('\n')}\n\nその中で、特に気になる視点はありますか？`;
                   }
                 }
               } catch (ragError) {
@@ -471,7 +471,7 @@ export async function POST(req: NextRequest) {
               // エラー時の応答
               await lineClient.replyMessage(event.replyToken, {
                 type: 'text' as const,
-                text: `${selectedEmotion}を選んでくれたんですね。その気持ち、よく分かります。`
+                text: `${selectedEmotion}を選んでくれたんですね。どんなことがその気持ちにさせてる？`
               } as any);
             }
             continue;
