@@ -68,7 +68,7 @@ function emotionQuickReply() {
                     },
                     style: 'primary' as const,
                     color: '#FFB6C1',
-                    height: 'md'
+                    height: 'sm'
                   },
                   {
                     type: 'button' as const,
@@ -79,7 +79,7 @@ function emotionQuickReply() {
                     },
                     style: 'primary' as const,
                     color: '#D3D3D3',
-                    height: 'md'
+                    height: 'sm'
                   },
                   {
                     type: 'button' as const,
@@ -90,7 +90,7 @@ function emotionQuickReply() {
                     },
                     style: 'primary' as const,
                     color: '#FFA07A',
-                    height: 'md'
+                    height: 'sm'
                   }
                 ]
               },
@@ -108,7 +108,7 @@ function emotionQuickReply() {
                     },
                     style: 'primary' as const,
                     color: '#FF6B6B',
-                    height: 'md'
+                    height: 'sm'
                   },
                   {
                     type: 'button' as const,
@@ -119,7 +119,7 @@ function emotionQuickReply() {
                     },
                     style: 'primary' as const,
                     color: '#87CEEB',
-                    height: 'md'
+                    height: 'sm'
                   },
                   {
                     type: 'button' as const,
@@ -130,7 +130,7 @@ function emotionQuickReply() {
                     },
                     style: 'primary' as const,
                     color: '#DDA0DD',
-                    height: 'md'
+                    height: 'sm'
                   }
                 ]
               }
@@ -155,8 +155,8 @@ function deepeningQuickReply(emotionKey: string) {
         contents: [
           {
             type: 'text' as const,
-            text: 'どんなことがその気持ちにさせてる？',
-            size: 'xl' as const,
+            text: 'どんなことが原因？',
+            size: 'lg' as const,
             weight: 'bold' as const,
             color: '#333333',
             align: 'center' as const
@@ -473,7 +473,7 @@ export async function POST(req: NextRequest) {
               .select('role, content')
               .eq('participant_id', participant.id)
               .order('created_at', { ascending: true })
-              .limit(10);
+              .limit(15);
             
             const isComplete = checkStoryCompleteness(conversationHistory || []);
             
@@ -490,6 +490,14 @@ export async function POST(req: NextRequest) {
                 if (diaryRecommendation.liffUrl) {
                   fullResponse += `\n\n日記を書く: ${diaryRecommendation.liffUrl}`;
                 }
+              }
+            } else {
+              // 会話が不完全な場合は深堀りを促す
+              const userMessages = (conversationHistory || []).filter(msg => msg.role === 'user');
+              const totalLength = userMessages.reduce((sum, msg) => sum + msg.content.length, 0);
+              
+              if (userMessages.length < 6 || totalLength < 200) {
+                fullResponse += `\n\nもう少し詳しく教えてもらえる？どんなことが一番気になってる？`;
               }
             }
             
