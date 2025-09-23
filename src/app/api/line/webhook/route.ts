@@ -486,7 +486,7 @@ export async function POST(req: NextRequest) {
                 try {
                   await lineClient.pushMessage(userId, {
                     type: 'text' as const,
-                    text: response
+                    text: `${selectedEmotion}を選んでくれたんですね。その気持ち、よく分かります。`
                   } as any);
                 } catch (pushError) {
                   console.error('[WEBHOOK] Error sending push message:', pushError);
