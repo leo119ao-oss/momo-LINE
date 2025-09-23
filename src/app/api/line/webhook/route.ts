@@ -417,8 +417,15 @@ export async function POST(req: NextRequest) {
             };
             const selectedEmotion = emotionLabels[emotionKey as keyof typeof emotionLabels] || emotionKey;
             
-            // 感情選択後は直接示唆を提供
+            // 感情選択時に自動的にメッセージを送信
             try {
+              // まず、ユーザーが選択した感情のメッセージを自動送信
+              await lineClient.replyMessage(event.replyToken, {
+                type: 'text' as const,
+                text: selectedEmotion
+              } as any);
+              
+              // 少し待ってからAIの応答を生成
               console.log('[WEBHOOK] Generating insights for emotion:', emotionKey);
               const { searchArticles } = await import('@/lib/search');
               const { generateInsights } = await import('@/lib/insightGenerator');
@@ -442,17 +449,36 @@ export async function POST(req: NextRequest) {
                 response += `\n\nその気持ち、よく分かります。`;
               }
               
-              await lineClient.replyMessage(event.replyToken, {
-                type: 'text' as const,
-                text: response
-              } as any);
+              // AIの応答を送信（少し待ってから）
+              setTimeout(async () => {
+                try {
+                  await lineClient.pushMessage(userId, {
+                    type: 'text' as const,
+                    text: response
+                  } as any);
+                } catch (pushError) {
+                  console.error('[WEBHOOK] Error sending push message:', pushError);
+                }
+              }, 1000);
               
             } catch (error) {
               console.error('[WEBHOOK] Error generating insights:', error);
+              // エラー時も自動メッセージ送信
               await lineClient.replyMessage(event.replyToken, {
                 type: 'text' as const,
-                text: `${selectedEmotion}を選んでくれたんですね。その気持ち、よく分かります。`
+                text: selectedEmotion
               } as any);
+              
+              setTimeout(async () => {
+                try {
+                  await lineClient.pushMessage(userId, {
+                    type: 'text' as const,
+                    text: `${selectedEmotion}を選んでくれたんですね。その気持ち、よく分かります。`
+                  } as any);
+                } catch (pushError) {
+                  console.error('[WEBHOOK] Error sending push message:', pushError);
+                }
+              }, 1000);
             }
             continue;
           }
@@ -521,12 +547,15 @@ export async function POST(req: NextRequest) {
                 }
               }
             } else {
-              // 会話が不完全な場合は自然な会話を促す
+              // 会話が不完全な場合は適切な深堀りを促す
               const userMessages = (conversationHistory || []).filter(msg => msg.role === 'user');
+              const totalLength = userMessages.reduce((sum, msg) => sum + msg.content.length, 0);
               
-              // 自然な会話を促す（しつこい質問は避ける）
+              // より自然な深堀り質問
               if (userMessages.length < 3) {
-                fullResponse += `\n\n何かお話ししたいことはありますか？`;
+                fullResponse += `\n\nどんなことが一番気になってる？`;
+              } else if (userMessages.length < 6 || totalLength < 200) {
+                fullResponse += `\n\nもう少し詳しく教えてもらえる？`;
               }
             }
             
