@@ -436,10 +436,10 @@ export async function POST(req: NextRequest) {
                 if (insights.insights.length > 0) {
                   response += `\n\nお母さん大学の記事を参考に、こんな視点はいかがでしょうか：\n${insights.insights.map(i => `・${i}`).join('\n')}`;
                 } else {
-                  response += `\n\nその気持ち、よく分かります。どんなことが一番気になってる？`;
+                  response += `\n\nその気持ち、よく分かります。`;
                 }
               } else {
-                response += `\n\nその気持ち、よく分かります。どんなことが一番気になってる？`;
+                response += `\n\nその気持ち、よく分かります。`;
               }
               
               await lineClient.replyMessage(event.replyToken, {
@@ -451,7 +451,7 @@ export async function POST(req: NextRequest) {
               console.error('[WEBHOOK] Error generating insights:', error);
               await lineClient.replyMessage(event.replyToken, {
                 type: 'text' as const,
-                text: `${selectedEmotion}を選んでくれたんですね。その気持ち、よく分かります。どんなことが一番気になってる？`
+                text: `${selectedEmotion}を選んでくれたんですね。その気持ち、よく分かります。`
               } as any);
             }
             continue;
@@ -521,15 +521,12 @@ export async function POST(req: NextRequest) {
                 }
               }
             } else {
-              // 会話が不完全な場合は適切な深堀りを促す
+              // 会話が不完全な場合は自然な会話を促す
               const userMessages = (conversationHistory || []).filter(msg => msg.role === 'user');
-              const totalLength = userMessages.reduce((sum, msg) => sum + msg.content.length, 0);
               
-              // より自然な深堀り質問
+              // 自然な会話を促す（しつこい質問は避ける）
               if (userMessages.length < 3) {
-                fullResponse += `\n\nどんなことが一番気になってる？`;
-              } else if (userMessages.length < 6 || totalLength < 200) {
-                fullResponse += `\n\nもう少し詳しく教えてもらえる？`;
+                fullResponse += `\n\n何かお話ししたいことはありますか？`;
               }
             }
             
