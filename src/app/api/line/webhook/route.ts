@@ -417,9 +417,9 @@ export async function POST(req: NextRequest) {
             };
             const selectedEmotion = emotionLabels[emotionKey as keyof typeof emotionLabels] || emotionKey;
             
-            // 感情選択時に自動的にメッセージを送信
+            // 感情選択時にユーザー側からメッセージを送信
             try {
-              // まず、ユーザーが選択した感情のメッセージを自動送信
+              // ユーザーが選択した感情をユーザー側のメッセージとして送信
               await lineClient.replyMessage(event.replyToken, {
                 type: 'text' as const,
                 text: selectedEmotion
@@ -434,7 +434,24 @@ export async function POST(req: NextRequest) {
               const searchQuery = `${emotionKey} 子育て 母親`;
               const articles = await searchArticles(searchQuery);
               
-              let response = `${selectedEmotion}を選んでくれたんですね。`;
+              // 傾聴の応答を生成
+              let response = '';
+              
+              if (emotionKey === 'tired') {
+                response = '疲れているんですね。';
+              } else if (emotionKey === 'smile') {
+                response = 'うれしい気持ちなんですね。';
+              } else if (emotionKey === 'neutral') {
+                response = 'ふつうの気持ちなんですね。';
+              } else if (emotionKey === 'anger') {
+                response = 'いらいらしているんですね。';
+              } else if (emotionKey === 'sad') {
+                response = 'かなしい気持ちなんですね。';
+              } else if (emotionKey === 'think') {
+                response = '考えているんですね。';
+              } else {
+                response = `${selectedEmotion}という気持ちなんですね。`;
+              }
               
               if (articles.length > 0) {
                 console.log('[WEBHOOK] Found articles, generating insights...');
@@ -442,11 +459,7 @@ export async function POST(req: NextRequest) {
                 
                 if (insights.insights.length > 0) {
                   response += `\n\nお母さん大学の記事を参考に、こんな視点はいかがでしょうか：\n${insights.insights.map(i => `・${i}`).join('\n')}`;
-                } else {
-                  response += `\n\nその気持ち、よく分かります。`;
                 }
-              } else {
-                response += `\n\nその気持ち、よく分かります。`;
               }
               
               // AIの応答を送信（少し待ってから）
@@ -473,7 +486,7 @@ export async function POST(req: NextRequest) {
                 try {
                   await lineClient.pushMessage(userId, {
                     type: 'text' as const,
-                    text: `${selectedEmotion}を選んでくれたんですね。その気持ち、よく分かります。`
+                    text: response
                   } as any);
                 } catch (pushError) {
                   console.error('[WEBHOOK] Error sending push message:', pushError);
@@ -631,7 +644,7 @@ export async function POST(req: NextRequest) {
           try {
             const aiMessage = await handleTextMessage(userId, text);
             
-            // 自然な応答を送信
+            // 傾聴の応答を送信
             await lineClient.replyMessage(event.replyToken, {
               type: 'text' as const,
               text: aiMessage
