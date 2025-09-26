@@ -9,6 +9,7 @@ import LiffSlider from "@/components/LiffSlider";
 import LiffChips from "@/components/LiffChips";
 import LiffInput from "@/components/LiffInput";
 import RagWidget from "./RagWidget";
+import ArticleSearchWidget from "@/components/ArticleSearchWidget";
 
 export default function Page() {
   const [uid, setUid] = useState<string>();
@@ -151,6 +152,8 @@ export default function Page() {
           ※必要な時だけ、後続で「確認の質問」や「記事3件」が出ます。
         </p>
       </LiffCard>
+      
+      <ArticleSearchWidget contact={uid}/>
       
       <RagWidget contact={uid}/>
     </LiffLayout>
