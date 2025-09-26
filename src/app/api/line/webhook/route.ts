@@ -440,25 +440,8 @@ export async function POST(req: NextRequest) {
                 response = `${selectedEmotion}という気持ちなんですね。どんなことがその気持ちにさせてる？`;
               }
               
-              // RAG検索を実行して示唆を生成
-              try {
-                const { searchArticles } = await import('@/lib/search');
-                const { generateInsights } = await import('@/lib/insightGenerator');
-                
-                const searchQuery = `${emotionKey} 子育て 母親`;
-                const articles = await searchArticles(searchQuery);
-                
-                if (articles.length > 0) {
-                  console.log('[WEBHOOK] Found articles, generating insights...');
-                  const insights = await generateInsights(emotionKey, '', '');
-                  
-                  if (insights.insights.length > 0) {
-                    response += `\n\nお母さん大学の記事を参考に、こんな視点はいかがでしょうか：\n${insights.insights.map(i => `・${i}`).join('\n')}\n\nその中で、特に気になる視点はありますか？`;
-                  }
-                }
-              } catch (ragError) {
-                console.error('[WEBHOOK] RAG search failed:', ragError);
-              }
+              // 対話を促すメッセージを追加
+              response += `\n\nその気持ちについて、もう少し詳しく教えてもらえる？`;
               
               // AIの応答を送信
               await lineClient.replyMessage(event.replyToken, {

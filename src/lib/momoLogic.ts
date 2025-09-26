@@ -23,9 +23,39 @@ const MOMO_VOICE = `
 - 長文にしすぎない。段落を分けて読みやすく.
 - 出力はプレーンテキスト。Markdown装飾は使わない。
 - 箇条書きは日本語の点を使う。
+- 対話を重視し、ユーザーの気持ちを受け止めて深く聞く。
+- 記事の紹介や検索は行わず、純粋な対話に集中する。
 `.trim();
 
+// 対話型AIのシステムプロンプト
+const DIALOGUE_AI_SYSTEM = `
+あなたはMomo。母親の内省を支える温かい対話相手です。
 
+【役割】
+- ユーザーの気持ちを受け止め、共感する
+- 深く聞くことで、ユーザー自身の気づきを促す
+- 評価や判断はせず、傾聴に徹する
+- 対話を通じて、ユーザーの内省を深める
+
+【応答のポイント】
+- 感情を認め、受け止める（「疲れているんですね」「うれしい気持ちなんですね」）
+- 具体的な質問で深く聞く（「どんなことが一番気になってる？」「どんなことがその気持ちにさせてる？」）
+- ユーザーの言葉を繰り返し、確認する（「○○ということですね」）
+- 新しい視点を提案する（「○○なものの見方をされるんですね」）
+- 対話を促す（「もう少し詳しく教えてもらえる？」）
+
+【避けること】
+- 記事の紹介や検索
+- アドバイスや解決策の提示
+- 評価や判断
+- 表面的な同意（「よく分かります」など）
+
+【口調】
+- やさしく、温かい
+- 共感的で受容的
+- 簡潔で読みやすい
+- プレーンテキスト（装飾なし）
+`.trim();
 
 function cleanForLine(raw: string): string {
   return (raw ?? '')
@@ -664,16 +694,16 @@ async function handleReasonHearing(text: string, state: ConversationState): Prom
  */
 async function handleInsightGeneration(text: string, state: ConversationState): Promise<string> {
   // 会話の完全性をチェック
-  const { data: history } = await supabaseAdmin
-    .from('chat_logs')
-    .select('role, content')
+    const { data: history } = await supabaseAdmin
+      .from('chat_logs')
+      .select('role, content')
     .eq('participant_id', state.conversationDepth.toString())
     .order('created_at', { ascending: true })
     .limit(10);
   
   const conversationHistory = (history || []).map(log => ({
     role: log.role,
-    content: log.content
+        content: log.content
   }));
   
   if (checkStoryCompleteness(conversationHistory)) {
@@ -724,9 +754,13 @@ async function handleArticleRecommendation(text: string, state: ConversationStat
  * @JSDoc
  * 【変更】メインのメッセージ処理関数。意図判別に応じて処理を振り分ける。
  */
-export async function handleTextMessage(userId: string, text: string): Promise<string> {
-  // バージョンログ（本番確認用）
-  console.log('[APP]', 'rev=', appRev());
+// 純粋な対話型AIハンドラー
+async function handleDialogueAI(
+  userId: string,
+  text: string
+): Promise<string> {
+  try {
+    console.log('[DIALOGUE] Processing dialogue request for user:', userId);
   
   const participant = await findOrCreateParticipant(userId);
 
@@ -737,238 +771,57 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
     content: text,
   });
 
-  // 未回答の画像があればキャプション確定（最優先）
-  const { data: pendings } = await supabaseAdmin
-    .from('media_entries')
+    // 会話履歴を取得
+    const { data: chatLogs } = await supabaseAdmin
+      .from('chat_logs')
     .select('*')
     .eq('participant_id', participant.id)
-    .eq('status', 'awaiting')
     .order('created_at', { ascending: false })
-    .limit(1);
+      .limit(10);
 
-  if (pendings && pendings.length) {
-    const p = pendings[0];
+    const conversationHistory = (chatLogs || [])
+      .reverse()
+      .map(log => ({
+        role: log.role as 'user' | 'assistant',
+        content: log.content
+      }));
 
-    if (p.ask_stage === 1) {
-      // 候補のどれ？ or 自由文？
-      const choices: string[] = (() => { 
-        try { 
-          return JSON.parse(p.suggested_caption || '[]'); 
-        } catch { 
-          return []; 
-        }
-      })();
-      
-      let finalCap = text.trim();
-      const m = text.trim().match(/^[１２３1-3]$/);
-      
-      if (m) {
-        // 番号選択の場合
-        const idx = Number(m[0].replace('１','1').replace('２','2').replace('３','3')) - 1;
-        if (choices[idx]) finalCap = choices[idx];
-      } else {
-        // 自由文を"日記向けに整形"
-    const openai = new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY! });
-        const norm = await openai.chat.completions.create({
-          model: 'gpt-4o-mini', 
-          temperature: 0.4,
+    // 対話型AIの応答を生成
+    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+    const completion = await openai.chat.completions.create({
+      model: 'gpt-4o-mini',
           messages: [
-            { role: 'system', content: '入力文を日記のキャプションらしく20±6字で自然に整える。絵文字・記号・引用符なし。' },
+        { role: 'system', content: DIALOGUE_AI_SYSTEM },
+        ...conversationHistory,
             { role: 'user', content: text }
-          ]
-        });
-        finalCap = norm.choices[0].message.content?.trim() || text;
-      }
+      ],
+      temperature: 0.7,
+      max_tokens: 500
+    });
 
-      await supabaseAdmin.from('media_entries')
-        .update({ caption: finalCap, ask_stage: 2 })
-        .eq('id', p.id);
-
-      return `いいね。「${finalCap}」でどうかな？\nもう少しだけ教えて：その瞬間、どんな気持ちだった？一言メモにするよ。`;
-    }
-
-    if (p.ask_stage === 2) {
-      // ひとことメモ保存 → 完成 → slug 発行 → URL 返す
-      const slug = p.page_slug || slugify(p.caption || 'diary');
-
-      await supabaseAdmin.from('media_entries')
-        .update({ 
-          extra_note: text.trim(), 
-          page_slug: slug, 
-          status: 'done', 
-          ask_stage: 3 
-        })
-        .eq('id', p.id);
-
-      const url = `${process.env.NEXT_PUBLIC_APP_URL?.replace(/\/$/,'') || ''}/diary/${slug}`;
-      return `できたよ。\n「${p.caption || ''}${p.caption ? '／' : ''}${text.trim()}」\n絵日記ページ：\n${url}\n（必要ならあとで文言を送ってくれれば更新もできるよ）`;
-    }
-  }
-
-  // 直近の同意待ちを確認
-  const { data: pi } = await supabaseAdmin
-    .from('pending_intents')
-    .select('*')
-    .eq('participant_id', participant.id)
-    .eq('kind','web_search')
-    .gt('expires_at', new Date().toISOString())
-    .order('created_at',{ascending:false})
-    .limit(1);
-
-  const yes = /^(はい|うん|ok|お願いします|お願い|調べて|いいよ)/i.test(text.trim());
-  const no  = /^(いいえ|いらない|大丈夫|結構)/i.test(text.trim());
-
-  if (pi && pi.length){
-    if (yes){
-      await supabaseAdmin.from('pending_intents').delete().eq('id', pi[0].id);
-      const url = new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000');
-      url.pathname = '/api/search/google'; 
-      url.searchParams.set('q', (pi[0].payload as any)?.query || text);
-      const r = await fetch(url.toString()); 
-      const { items } = await r.json();
-      if(!items?.length) return '検索してみたけれど、めぼしい情報は見つからなかったよ。';
-      // 4o-miniで3件要約
-      const digest = items.slice(0,3).map((it:any,i:number)=>`[${i+1}] ${it.title}\n${it.snippet}\n${it.link}`).join('\n\n');
-      const sys = 'あなたはリサーチアシスタント。上の候補を3行で要約し、最後に「次の一歩」を1文添える。装飾不可。';
-      const oai = new (await import('openai')).default({ apiKey: process.env.OPENAI_API_KEY! });
-      const c = await oai.chat.completions.create({ 
-        model:'gpt-4o-mini', 
-        temperature:0.2,
-        messages:[{role:'system',content:sys},{role:'user',content:digest}]
-      });
-      return c.choices[0].message.content || digest;
-    } else if (no){
-      await supabaseAdmin.from('pending_intents').delete().eq('id', pi[0].id);
-      return '了解。また必要になったら声かけてね。';
-    }
-    // 同意/拒否でない普通の文章 → 何もしない（通常フロー続行）
-  }
-
-  // 新しい会話フローを使用するかどうかを判定
-  const shouldUseNewFlow = true; // フラグで制御可能
-  
-  let aiMessage: string;
-  
-  if (shouldUseNewFlow) {
-    // 【新しい会話フロー】感情確認→理由ヒアリング→示唆→日記推奨→記事紹介
-    console.log('Using new conversation flow...');
-    aiMessage = await handleNewConversationFlow(participant, text);
-  } else {
-    // 【従来の処理】意図判別に応じて処理を振り分け
-    const rawIntent = await detectUserIntent(text);
-    const intent = chooseMode(rawIntent, text);
-    lastMode = intent;
-    console.log(`[Intent] User message: "${text}" -> Raw: ${rawIntent} -> Final: ${intent}`);
+    const response = cleanForLine(completion.choices[0]?.message?.content || '');
     
-    // デバッグ用：意図検出の詳細ログ
-    console.log(`[Debug] Intent detection - Text: "${text}", Raw: ${rawIntent}, Final: ${intent}`);
-
-    if (intent === 'information_seeking') {
-      // 【質問の場合】RAG処理を呼び出す
-      aiMessage = await handleInformationSeeking(participant, text);
-    } else {
-      // 【つぶやきの場合】従来のカウンセラー応答
-      console.log('Handling personal reflection intent...');
-      
-      // テレメトリログを出力
-      logRagEvent({
-        rev: appRev(),
-        intent: "empathy",
-        q: text,
-        topK: 0,
-        minSim: 0,
-        rawCount: 0,
-        keptCount: 0,
-        lowConfFallback: false
-      });
-      const { data: history } = await supabaseAdmin
-        .from('chat_logs')
-        .select('role, content')
-        .eq('participant_id', participant.id)
-        .order('created_at', { ascending: false })
-        .limit(12); // より多くの会話履歴を取得
-      
-      const messages = (history || [])
-        .reverse()
-        .map(log => ({
-          role: log.role === 'ai' ? 'assistant' : 'user',
-          content: log.content
-        })) as { role: 'user' | 'assistant'; content: string }[];
-
-      // 現在のユーザーメッセージを追加
-      messages.push({ role: 'user', content: text });
-
-      // 会話の流れを分析
-      const { conversationFlow } = await getConversationContext(participant.id);
-      
-      // 不明確なメッセージの場合は聞き返しを優先
-      const clarificationResponse = await checkForClarification(text, conversationFlow);
-      if (clarificationResponse) {
-        return clarificationResponse;
-      }
-
-        const profile = participant.profile_summary ? `\n[ユーザープロフィール要約]\n${participant.profile_summary}\n` : '';
-      
-      // 会話の継続性を考慮したシステムプロンプト
-      const conversationContext = conversationFlow.isDeepConversation ? 
-        `\n[会話の流れ]\n前回のテーマ: ${conversationFlow.lastTheme || '新しい話題'}\n会話の深さ: ${conversationFlow.messageCount}回のやり取り\n前回のAI応答: ${conversationFlow.lastAiMessage}` : '';
-      
-        // 傾聴スタイルの切り替え
-        const system = flags.empathyStyle === "reflective"
-          ? EMPATHY_REFLECTIVE_SYSTEM
-          : `${MOMO_VOICE}${profile}${conversationContext}
-
-[ルール]
-- 会話の流れを意識し、前回の内容に自然に繋げる。
-- 過去の会話について聞かれた場合は、具体的に振り返って答える。
-- 相づち→ねぎらい→一息つける提案を1つだけ。
-- 連続質問はしない。問いは最大1つ。
-- ユーザーの表現を少し言い換えて返す（ミラーリング）。
-- 会話が続いている場合は、前回の話題に関連した自然なフォローアップを心がける。
-- ユーザーが具体的な解決策や情報を求めている場合は、「詳しい情報が必要だったら教えてね」と提案する。
-- 内容が不明確な場合は、推察を交えつつ具体的に聞き返す。
-- 出力はプレーンテキスト。Markdown装飾は使わない。
-- 箇条書きは日本語の点を使う。
-`.trim();
-
-      // Few-shot例の追加（reflectiveモードの場合）
-      let messagesWithExamples = messages;
-      if (flags.empathyStyle === "reflective" && EMPATHY_REFLECTIVE_FEWSHOT.length > 0) {
-        const fewShotMessages = EMPATHY_REFLECTIVE_FEWSHOT.slice(0, 2).flatMap(example => [
-          { role: 'user' as const, content: example.user },
-          { role: 'assistant' as const, content: example.assistant }
-        ]);
-        messagesWithExamples = [...fewShotMessages, ...messages];
-      }
-
-      const completion = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [{ role: 'system', content: system }, ...messagesWithExamples],
-      });
-      aiMessage = completion.choices[0].message.content || 'うんうん、そうなんだね。';
-      
-      // 傾聴メタログを出力
-      logEmpathyMeta(text, aiMessage);
-    }
-  }
-
-  // AIの応答をログに保存
+    // AI応答をログに保存
   await supabaseAdmin.from('chat_logs').insert({
     participant_id: participant.id,
     role: 'assistant',
-    content: aiMessage,
-  });
+      content: response,
+    });
 
-  // プロフィール要約を非同期で更新（ベストエフォート）
-  updateProfileSummary(participant.id).catch(console.error);
+    console.log('[DIALOGUE] Dialogue response generated successfully');
+    return response;
+  } catch (error) {
+    console.error('[DIALOGUE] Error in dialogue AI:', error);
+    return 'すみません、少し時間をおいてから再度お話しませんか？';
+  }
+}
+
+export async function handleTextMessage(userId: string, text: string): Promise<string> {
+  // バージョンログ（本番確認用）
+  console.log('[APP]', 'rev=', appRev());
   
-  // 重要な会話情報を記憶に保存（ベストエフォート）
-  saveImportantConversationInfo(participant.id, text, aiMessage).catch(console.error);
-
-  // 生成済みの aiMessage を LINE 向けに整形
-  aiMessage = cleanForLine(aiMessage);
-
-  return aiMessage;
+  // 純粋な対話型AIを使用
+  return await handleDialogueAI(userId, text);
 }
 
 /**
