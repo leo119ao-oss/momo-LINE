@@ -192,9 +192,6 @@ export async function buildReferenceBlock(userMessage: string, picked: { title?:
 
 
 // JSDoc: クライアントの初期化
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-});
 
 // findOrCreateParticipant関数は participants.ts に移動済み
 

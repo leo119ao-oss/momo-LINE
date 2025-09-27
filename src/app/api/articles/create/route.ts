@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     console.log('[ARTICLE_CREATE] Creating article from:', { contact, selectedArticles, query });
 
     // 選択された記事の内容を取得
-    const articleContents = selectedArticles.map(article => 
+    const articleContents = selectedArticles.map((article: any) => 
       `タイトル: ${article.title}\nURL: ${article.url}\n概要: ${article.summary}`
     ).join('\n\n');
 

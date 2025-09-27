@@ -10,25 +10,11 @@ import type { MessageEvent } from '@line/bot-sdk';
 import { findOrCreateParticipant } from '@/lib/participants';
 import { getOrStartSession, endSession } from '@/lib/session';
 import { DEEPENING_BY_EMOTION } from '@/config/conversationMap';
-import { shouldAddInsightCue } from '@/lib/style/insightCue';
-import { generateReflectiveCore } from '@/lib/reflectiveCore';
-import { INSIGHT_CUE_SYSTEM, INSIGHT_CUE_USER } from '@/lib/prompts.insight';
 import { checkStoryCompleteness } from '@/lib/conversationFlow';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-function qr(items: { label: string, text?: string, data?: string }[]) {
-  return {
-    quickReply: {
-      items: items.map(i => ({
-        type: "action",
-        action: i.text ? { type: "message", label: i.label, text: i.text }
-                       : { type: "postback", label: i.label, data: i.data! }
-      }))
-    }
-  };
-}
 
 function emotionQuickReply() {
   return {
@@ -142,130 +128,7 @@ function emotionQuickReply() {
   };
 }
 
-function deepeningQuickReply(emotionKey: string) {
-  const m = DEEPENING_BY_EMOTION[emotionKey] ?? { a: "A", b: "B" };
-  return {
-    type: 'flex' as const,
-    altText: 'どちらが近いですか？',
-    contents: {
-      type: 'bubble' as const,
-      body: {
-        type: 'box' as const,
-        layout: 'vertical' as const,
-        contents: [
-          {
-            type: 'text' as const,
-            text: 'どんなことが原因？',
-            size: 'lg' as const,
-            weight: 'bold' as const,
-            color: '#333333',
-            align: 'center' as const
-          },
-          {
-            type: 'box',
-            layout: 'vertical' as const,
-            spacing: 'md' as const,
-            margin: 'lg' as const,
-            contents: [
-              {
-                type: 'button',
-                action: {
-                  type: 'postback',
-                  label: m.a,
-                  data: `deep:${emotionKey}:${m.a}`
-                },
-                style: 'primary',
-                color: '#FF8FA3',
-                    height: 'md' as const,
-                margin: 'sm' as const
-              },
-              {
-                type: 'button',
-                action: {
-                  type: 'postback',
-                  label: m.b,
-                  data: `deep:${emotionKey}:${m.b}`
-                },
-                style: 'primary',
-                color: '#FF8FA3',
-                    height: 'md' as const,
-                margin: 'sm' as const
-              },
-              {
-                type: 'button',
-                action: {
-                      type: 'message' as const,
-                  label: 'ほかにもある',
-                  text: '自由入力します'
-                },
-                    style: 'secondary' as const,
-                color: '#E5E7EB',
-                    height: 'md' as const,
-                margin: 'sm' as const
-              }
-            ]
-          }
-        ]
-      }
-    }
-  };
-}
 
-function endOrDiaryQR() {
-  return {
-    type: 'flex' as const,
-    altText: 'どうしますか？',
-    contents: {
-      type: 'bubble' as const,
-      body: {
-        type: 'box' as const,
-        layout: 'vertical' as const,
-        contents: [
-          {
-            type: 'text' as const,
-            text: 'どうしますか？',
-            size: 'xl' as const,
-            weight: 'bold' as const,
-            color: '#333333',
-            align: 'center' as const
-          },
-          {
-            type: 'box',
-            layout: 'vertical' as const,
-            spacing: 'md' as const,
-            margin: 'lg' as const,
-            contents: [
-              {
-                type: 'button',
-                action: {
-                  type: 'postback',
-                  label: '📝 今日の1分に残す',
-                  data: 'diary:save'
-                },
-                style: 'primary',
-                color: '#4CAF50',
-                    height: 'md' as const,
-                margin: 'sm' as const
-              },
-              {
-                type: 'button',
-                action: {
-                  type: 'postback',
-                  label: '👋 ここで終わる',
-                  data: 'session:end'
-                },
-                    style: 'secondary' as const,
-                color: '#9E9E9E',
-                    height: 'md' as const,
-                margin: 'sm' as const
-              }
-            ]
-          }
-        ]
-      }
-    }
-  };
-}
 
 async function handleImage(event: MessageEvent){
   console.log('IMG_EVENT: Processing image message', event.message.id);
