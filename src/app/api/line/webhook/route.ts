@@ -9,7 +9,6 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import type { MessageEvent } from '@line/bot-sdk';
 import { findOrCreateParticipant } from '@/lib/participants';
 import { getOrStartSession, endSession } from '@/lib/session';
-import { DEEPENING_BY_EMOTION } from '@/config/conversationMap';
 import { checkStoryCompleteness } from '@/lib/conversationFlow';
 import OpenAI from 'openai';
 

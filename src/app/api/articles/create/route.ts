@@ -61,7 +61,7 @@ export async function POST(request: NextRequest) {
         user_id: contact,
         title: `「${query}」に関する記事まとめ`,
         content: generatedContent,
-        source_articles: selectedArticles.map(a => a.url),
+        source_articles: selectedArticles.map((a: any) => a.url),
         search_query: query,
         status: 'published'
       })
