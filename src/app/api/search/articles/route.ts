@@ -28,7 +28,7 @@ export async function POST(request: NextRequest) {
     }
 
     // 結果を整形
-    const formattedArticles = articles.slice(0, limit).map((article, index) => ({
+    const formattedArticles = articles.slice(0, limit).map((article) => ({
       title: article.title || 'タイトルなし',
       url: article.url || '#',
       summary: article.content?.substring(0, 100) + '...' || '概要なし',
