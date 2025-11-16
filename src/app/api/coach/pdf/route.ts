@@ -3,8 +3,11 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { PDFDocument, rgb } from 'pdf-lib';
 import fontkit from '@pdf-lib/fontkit';
 import { z } from 'zod';
+import OpenAI from 'openai';
 
 export const dynamic = 'force-dynamic';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 const pdfSchema = z.object({
   user_id: z.string().min(1),
@@ -32,6 +35,32 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { user_id, article_id, title, content } = pdfSchema.parse(body);
 
+    // 文章整形（gpt-5.1）- PDF用に文章を整える
+    let formattedContent = content;
+    if (content && content.trim().length > 0) {
+      try {
+        const completion = await openai.chat.completions.create({
+          model: 'gpt-5.1',
+          messages: [
+            {
+              role: 'system',
+              content: 'あなたはPDF用の文章を整形するAIです。提供された文章をPDF提出物として適切な形式に整えてください。語尾を統一し、読みやすく、自然な日本語にしてください。',
+            },
+            {
+              role: 'user',
+              content: `以下の文章をPDF用に整形してください：\n\n${content}`,
+            },
+          ],
+          temperature: 0.7,
+          max_tokens: 2000,
+        });
+        formattedContent = completion.choices[0]?.message?.content?.trim() || content;
+      } catch (error) {
+        console.error('[COACH_PDF] AI formatting error:', error);
+        // エラーが発生しても元の文章を使用
+      }
+    }
+
     // PDFを生成
     const pdfDoc = await PDFDocument.create();
     pdfDoc.registerFontkit(fontkit);
@@ -52,7 +81,7 @@ export async function POST(req: NextRequest) {
     });
 
     // 本文
-    const lines = content.split('\n');
+    const lines = formattedContent.split('\n');
     let currentPage = page;
     let y = height - 100;
     const fontSize = 12;

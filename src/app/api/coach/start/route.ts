@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { findOrCreateParticipant } from '@/lib/participants';
 import { z } from 'zod';
+import OpenAI from 'openai';
 
 export const dynamic = 'force-dynamic';
+
+const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
 const startSchema = z.object({
   user_id: z.string().min(1),
@@ -58,10 +61,34 @@ export async function POST(req: NextRequest) {
       articleId = newArticle.id;
     }
 
+    // 初回導入質問生成（gpt-4.1-mini）
+    let initialQuestion = null;
+    try {
+      const completion = await openai.chat.completions.create({
+        model: 'gpt-4.1-mini',
+        messages: [
+          {
+            role: 'system',
+            content: 'あなたはMomo。母親コミュニティにおけるAIコンパニオンとして、参加者の「書く」体験を支えるAIです。初回の導入質問を1つ生成してください。温かく親しみやすい口調で、今日感じたことや気づきを話しやすくなるような質問を生成してください。',
+          },
+          {
+            role: 'user',
+            content: '初回の導入質問を1つ生成してください。',
+          },
+        ],
+        temperature: 0.7,
+        max_tokens: 150,
+      });
+      initialQuestion = completion.choices[0]?.message?.content?.trim() || null;
+    } catch (error) {
+      console.error('[COACH_START] AI question generation error:', error);
+    }
+
     return NextResponse.json({
       ok: true,
       participant_id: participant.id,
       article_id: articleId,
+      initial_question: initialQuestion,
     });
   } catch (error: any) {
     if (error instanceof z.ZodError) {
