@@ -228,7 +228,7 @@ function ActionPageContent() {
 
   // 初回の対話を開始
   useEffect(() => {
-    if (!warmupComplete || loading || initializingUser || !userId) {
+    if (!_warmupComplete || loading || initializingUser || !userId) {
       return;
     }
 
@@ -236,7 +236,7 @@ function ActionPageContent() {
       fetchNextQuestion([], { force: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, initializingUser, userId, warmupComplete]);
+  }, [loading, initializingUser, userId, _warmupComplete]);
 
   const wordCount = useMemo(() => {
     return body ? body.replace(/\s+/g, '').length : 0;
@@ -386,7 +386,7 @@ function ActionPageContent() {
         body: JSON.stringify({
           participant_id: participantId,
           article_id: articleId,
-          qa_context: qaTurns,
+          qa_context: _qaTurns,
         }),
       });
 
