@@ -10,11 +10,11 @@ export default async function CoachPage({
   const params = await Promise.resolve(searchParams);
   const userId = params?.user_id;
   
-  // /dailyページにリダイレクト（user_idパラメータを保持）
+  // /actionページにリダイレクト（user_idパラメータを保持）
   if (userId) {
-    redirect(`/daily?user_id=${userId}`);
+    redirect(`/action?user_id=${userId}`);
   } else {
-    redirect('/daily');
+    redirect('/action');
   }
 }
 
