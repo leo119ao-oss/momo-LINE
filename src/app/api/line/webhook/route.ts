@@ -59,7 +59,7 @@ async function handleImage(event: MessageEvent){
     // 画像の基本説明を生成
     const guessSys = '写真を見て優しく説明してください。断定しすぎず、やさしい文体で。';
     const vision = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini',
       messages: [
         { role: 'system', content: guessSys },
         { role: 'user', content: [
@@ -74,7 +74,7 @@ async function handleImage(event: MessageEvent){
 
     // キャプション候補を2-3個生成
     const caps = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini',
       messages: [
         { role: 'system', content: '次の説明から、日記のキャプション候補を日本語で3つ、15-18字。言い切りめor 〜だなあ調。絵文字や記号なし。' },
         { role: 'user', content: base }

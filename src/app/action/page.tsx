@@ -300,7 +300,7 @@ function ActionPageContent() {
     } catch (err) {
       console.error('[ACTION] Failed to fetch question:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
-      console.error('[ACTION] Error details:', { errorMessage, model: 'gpt-4o-mini' });
+      console.error('[ACTION] Error details:', { errorMessage, model: 'gpt-4.1-mini' });
       setCurrentQuestion('質問を生成できませんでした。');
       setMessage(`momo: エラーが発生しました: ${errorMessage}`);
     } finally {

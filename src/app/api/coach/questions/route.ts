@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       : `これまでの対話を踏まえて、次の質問を1つ生成してください。ユーザーの回答を深掘りするような質問を生成してください。`;
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-4.1-mini',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         ...conversationHistory,
@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       console.error('[COACH_QUESTIONS] Model error:', {
         message: error.message,
         code: error.code,
-        model: 'gpt-4o-mini',
+        model: 'gpt-4.1-mini',
         suggestion: 'モデル名が正しいか、APIキーにアクセス権限があるか確認してください',
       });
     }
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
       { 
         error: '質問の生成に失敗しました',
         details: error?.message || 'Unknown error',
-        model: 'gpt-4o-mini',
+        model: 'gpt-4.1-mini',
       },
       { status: 500 }
     );
