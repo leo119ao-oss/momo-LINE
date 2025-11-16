@@ -245,7 +245,7 @@ function ActionPageContent() {
   const _conversationReady = _qaTurns.length >= 3;
   // 編集可能条件：会話が3回以上あるか、既に保存済みの記事がある場合
   // articleIdが存在する場合は常に編集可能（保存済み記事の編集を許可）
-  const _canEdit = Boolean(userId && articleId && !loading && (_conversationReady || Boolean(articleId)));
+  const _canEdit = Boolean(userId && articleId && !loading);
 
   const _moodPresets = [
     { value: 'いい感じ', label: 'いい感じ！気分が良い' },
@@ -515,7 +515,8 @@ function ActionPageContent() {
           setArticleId(targetArticle.id);
           setTitle(targetArticle.title || '');
           setBody(targetArticle.body || '');
-          setStatus(targetArticle.status === 'submitted' ? 'submitted' : 'draft');
+          // 過去の記事を編集する場合は、statusを'draft'に変更して編集可能にする
+          setStatus('draft');
           setSubmittedAt(targetArticle.submitted_at || null);
           setSaveStatus('idle');
           setMessage('momo: 記事を読み込みました。編集できます。');
@@ -873,7 +874,7 @@ function ActionPageContent() {
                   value={title}
                   placeholder="対話の内容から、タイトルを考えてみてください"
                   onChange={(e) => setTitle(e.target.value)}
-                  disabled={!_canEdit || status === 'submitted'}
+                  disabled={!_canEdit}
                 />
               </div>
 
@@ -894,7 +895,7 @@ function ActionPageContent() {
                   placeholder="記事について、気分や考えを自由に書いてみてください"
                   onChange={(e) => setBody(e.target.value)}
                   rows={16}
-                  disabled={!_canEdit || status === 'submitted'}
+                  disabled={!_canEdit}
                 />
                 <p className="field-hint">※ 300〜500文字程度を目安に書いてみてください。</p>
               </div>
