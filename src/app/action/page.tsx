@@ -614,6 +614,7 @@ function ActionPageContent() {
               >
                 順番を自由に進める
               </button>
+            )}
           </div>
 
           <div className="action-card warmup-card">
