@@ -57,13 +57,13 @@ async function handleImage(event: MessageEvent){
     console.log('IMG_EVENT: Image saved to', publicUrl);
 
     // 画像の基本説明を生成
-    const guessSys = '写真を見て 情景を1文で。断定しすぎず、やさしい文体。';
+    const guessSys = '写真を見て優しく説明してください。断定しすぎず、やさしい文体で。';
     const vision = await openai.chat.completions.create({
       model: 'gpt-5.1-mini',
       messages: [
         { role: 'system', content: guessSys },
         { role: 'user', content: [
-            { type: 'text', text: 'この画像の情景。短い名詞句では なく1文で。' },
+            { type: 'text', text: 'この画像を説明。短い名詞句ではなく、文章で。' },
             { type: 'image_url', image_url: { url: publicUrl } }
           ] as any }
       ],
@@ -97,8 +97,8 @@ async function handleImage(event: MessageEvent){
     });
     console.log('IMG_EVENT: Saved to media_entries with candidates');
 
-    // LINE返信（番号選択を促す）
-    const responseText = `素敵な1枚だね。これは「${base}」って感じかな？\n\nキャプション案：\n1) ${candidates[0]}\n2) ${candidates[1] || ''}\n3) ${candidates[2] || ''}\n\n近い番号を教えてね。ぜんぶ違えば、理想の文をそのまま送ってくれて大丈夫！`;
+    // LINE返信で番号選択を促す
+    const responseText = `素敵な1枚だね。これ、「${base}」って感じかな。\n\nキャプション案：\n1) ${candidates[0]}\n2) ${candidates[1] || ''}\n3) ${candidates[2] || ''}\n\n近い番号を教えてね。ぜんぜん違えば、理想のキャプションをそのまま送ってくれて大丈夫。`;
     await lineClient.replyMessage(event.replyToken, {
       type: 'text',
       text: responseText
