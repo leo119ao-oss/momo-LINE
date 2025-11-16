@@ -249,7 +249,7 @@ function ActionPageContent() {
     { value: 'いい感じ', label: 'いい感じ！気分が良い' },
     { value: 'まあまあ', label: 'まあまあ' },
     { value: 'ドキドキ', label: 'ちょっとドキドキ' },
-    { value: 'しんどい◆', label: '縺ｻ縺｣縺ｨ荳諱ｯ縺､縺代◆' },
+    { value: 'しんどい◆', label: 'しんどい、気分が悪い' },
     { value: 'わからない', label: 'わからない。まだ整理できていない' },
   ];
 
@@ -594,7 +594,7 @@ function ActionPageContent() {
       <div className="action-layout">
         <section className="action-editor">
           <div className="action-card task-card">
-            <h2>莉頑律縺ｮ繧・ｋ縺薙→繝ｪ繧ｹ繝・/h2>
+            <h2>記事の進め方</h2>
             <ul className="task-list">
               {tasks.map((task, index) => {
                 const prevIncomplete = !manualProgress && tasks.slice(0, index).some((t) => !t.done);
@@ -612,14 +612,14 @@ function ActionPageContent() {
                 className="task-free-toggle"
                 onClick={() => setManualProgress(true)}
               >
-                閾ｪ蛻・・繝壹・繧ｹ縺ｧ騾ｲ繧√ｋ・磯・分繧定ｧ｣髯､・・              </button>
+                順番を自由に進める
             )}
           </div>
 
           <div className="action-card warmup-card">
-            <h2>繧ｦ繧ｩ繝ｼ繝繧｢繝・・</h2>
-            <p>縺ｾ縺壹・縲∽ｻ頑律縺ｮ豌怜・繧・ｮ九＠縺ｦ縺翫″縺溘＞縺薙→繧知omo縺ｫ謨吶∴縺ｦ縺上□縺輔＞縲ゅ＞縺ｾ縺ｮ豌玲戟縺｡縺梧紛逅・〒縺阪ｋ縺ｨ縲√％縺ｮ蜈医・雉ｪ蝠上′縺ゅ↑縺溘↓蜷医ｏ縺帙◆蜀・ｮｹ縺ｫ縺ｪ繧翫∪縺吶・/p>
-            <p className="warmup-note">窶ｻ 荳九・繝懊ち繝ｳ縺九ｉ縺・∪縺ｮ豌怜・繧・縺､驕ｸ縺ｶ縺ｨ縲［omo縺後♀隧ｱ繧帝ｲ繧√ｉ繧後∪縺吶・/p>
+            <h2>ウォームアップ</h2>
+            <p>今日、記事を書く気分をmomoに伝えてみてください。今日の気分を選んで、momoとの対話を始めましょう。気分がまだ整理できていない場合は、スキップして進むこともできます。</p>
+            <p className="warmup-note">※ 気分は後から変更できます。momoとの対話を通じて、気分を整理していきましょう。</p>
             <div className="mood-buttons">
               {moodPresets.map((preset) => (
                 <button
@@ -636,12 +636,12 @@ function ActionPageContent() {
             <textarea
               className="textarea"
               rows={3}
-              placeholder="莉頑律縺ゅ▲縺溘％縺ｨ繧・Γ繝｢縺励※縺翫″縺溘＞縺薙→縺後≠繧後・閾ｪ逕ｱ縺ｫ譖ｸ縺・※縺上□縺輔＞"
+              placeholder="記事について、気分や考えを書いてみてください"
               value={warmupNote}
               onChange={(e) => setWarmupNote(e.target.value)}
               disabled={warmupComplete}
             />
-            <p className="warmup-meta-note">窶ｻ 繝｡繝｢縺ｯ莉ｻ諢上〒縺吶よ嶌縺九↑縺上※繧ょ､ｧ荳亥､ｫ縺ｧ縺吶・/p>
+            <p className="warmup-meta-note">※ メモは後から変更できます。気分を選んでから進みましょう。</p>
             {!warmupComplete ? (
               <div className="warmup-actions">
                 <button
@@ -649,33 +649,33 @@ function ActionPageContent() {
                   className="primary warmup-submit"
                   onClick={handleWarmupSubmit}
                 >
-                  繧ｦ繧ｩ繝ｼ繝繧｢繝・・縺ｮ蝗樒ｭ斐ｒ騾∽ｿ｡縺吶ｋ
+                  ウォームアップを完了する
                 </button>
                 <button
                   type="button"
                   className="secondary warmup-skip"
                   onClick={() => {
                     setWarmupComplete(true);
-                    setWarmupMood('繧ｹ繧ｭ繝・・');
-                    setMessage('momo: OK・∽ｻ雁屓縺ｯ繧ｦ繧ｩ繝ｼ繝繧｢繝・・繧帝｣帙・縺励※縲∫峩謗･縺願ｩｱ縺九ｉ蟋九ａ繧医≧縲・);
+                    setWarmupMood('スキップ');
+                    setMessage('momo: OK、スキップします。それでは、momoとの対話を始めましょう。');
                   }}
                 >
-                  莉雁屓縺ｯ繧ｹ繧ｭ繝・・縺吶ｋ
+                  気分はスキップする
                 </button>
               </div>
             ) : (
-              <div className="warmup-complete">縺ゅｊ縺後→縺・ゅ％縺薙°繧峨・momo縺後♀隧ｱ繧剃ｼｺ縺・・縲ら判髱｢繧剃ｸ九↓繧ｹ繧ｯ繝ｭ繝ｼ繝ｫ縺励※蟇ｾ隧ｱ繧ｹ繝・ャ繝励∈騾ｲ繧薙〒縺上□縺輔＞縲・/div>
+              <div className="warmup-complete">完了しました。momoとの対話を始めましょう。気分は後から変更できます。</div>
             )}
           </div>
 
           <div className="action-card conversation-card" ref={conversationRef}>
-            <h2>momo縺ｨ縺ｮ蟇ｾ隧ｱ</h2>
-            <p>豌苓ｻｽ縺ｪ縺翫＠繧・∋繧翫→諤昴▲縺ｦ縺ｭ縲よｵｮ縺九ｓ縺縺薙→繧偵◎縺ｮ縺ｾ縺ｾ隧ｱ縺励※縺上ｌ繧後・螟ｧ荳亥､ｫ縲・/p>
-            <p className="qa-note">窶ｻ momo縺ｮ謐峨∴譁ｹ縺碁＆縺・→諢溘§縺溘ｉ縲∵ｬ｡縺ｮ蝗樒ｭ斐ｄ縲悟ｯｾ隧ｱ繧堤ｶ壹￠繧具ｼ郁ｨよｭ｣縺吶ｋ・峨阪・繧ｿ繝ｳ縺九ｉ驕諷ｮ縺ｪ縺剰ｨよｭ｣縺励※縺上□縺輔＞縲・/p>
+            <h2>momoとの対話</h2>
+            <p>質問に答えて、momoと対話しながら、あなたの体験を共有してみてください。気分や考えをそのまま書いても大丈夫です。</p>
+            <p className="qa-note">※ momoの質問に答えて、対話を続けていきましょう。気分が変わったら、対話を通じて修正することもできます。</p>
 
             {!warmupComplete && !manualProgress && (
               <div className="conversation-lock">
-                <p>繧ｦ繧ｩ繝ｼ繝繧｢繝・・繧貞ｮ御ｺ・☆繧九→縲√％縺ｮ蜈医・蟇ｾ隧ｱ縺ｫ騾ｲ繧√∪縺吶・/p>
+                <p>ウォームアップを完了してから、対話を始めましょう。</p>
               </div>
             )}
 
@@ -693,7 +693,7 @@ function ActionPageContent() {
 
             {showOutlinePrompt ? (
               <div className="outline-prompt">
-                <p>縺薙％縺ｾ縺ｧ縺ｮ縺願ｩｱ縺ｧ縲∬ｨ倅ｺ九・豬√ｌ縺ｮ縺溘◆縺榊床繧剃ｽ懊▲縺ｦ縺ｿ繧医≧縺具ｼ・/p>
+                <p>3つの質問に答えていただき、ありがとうございました。記事の構成案を作ることができます。</p>
                 <div className="prompt-actions">
                   <button
                     type="button"
@@ -701,7 +701,7 @@ function ActionPageContent() {
                     onClick={handleOutlinePromptAccept}
                     disabled={isGeneratingOutline}
                   >
-                    {isGeneratingOutline ? '菴懈・荳ｭ...' : '縺ｯ縺・√♀鬘倥＞縺励∪縺・}
+                    {isGeneratingOutline ? '生成中...' : 'はい、お願いします'}
                   </button>
                   <button
                     type="button"
@@ -709,24 +709,24 @@ function ActionPageContent() {
                     onClick={handleOutlinePromptDecline}
                     disabled={isGeneratingOutline}
                   >
-                    縺ｾ縺邯壹￠繧・                  </button>
+                    後で考える
                 </div>
               </div>
             ) : (
               <div className="qa-input">
                 <div className="qa-current-question">
                   {questionLoading
-                    ? 'momo縺梧ｬ｡縺ｮ雉ｪ蝠上ｒ閠・∴縺ｦ縺・∪縺吮ｦ'
+                    ? 'momoが質問を考えています...'
                     : warmupComplete
-                      ? (currentQuestion || '莉頑律荳逡ｪ蜊ｰ雎｡縺ｫ谿九▲縺溘％縺ｨ縺ｯ菴輔〒縺吶°・・)
-                      : '縺ｾ縺壹・繧ｦ繧ｩ繝ｼ繝繧｢繝・・繧堤ｵゅ∴縺ｦ縺九ｉ荳邱偵↓騾ｲ繧√ｈ縺・・縲・}
+                      ? (currentQuestion || '質問を生成できませんでした。')
+                      : 'まず、ウォームアップを完了してから対話を始めましょう。'
                 </div>
                 <textarea
                   className="textarea"
                   rows={4}
                   value={currentAnswer}
                   onChange={(e) => setCurrentAnswer(e.target.value)}
-                  placeholder="諤昴＞縺､縺・◆險闡峨ｒ縺昴・縺ｾ縺ｾ譖ｸ縺・※縺ｿ繧医≧縲ゅ≧縺ｾ縺上∪縺ｨ縺ｾ繧峨↑縺上※繧ょ､ｧ荳亥､ｫ縲・
+                  placeholder="答えたいことを自由に書いてみてください。気分や考えをそのまま書いても大丈夫です。"
                   disabled={questionLoading || status === 'submitted' || !warmupComplete}
                 />
                 <div className="qa-actions">
@@ -771,25 +771,25 @@ function ActionPageContent() {
 
               {leadSuggestion && (
                 <div className="lead-suggestion">
-                  <h3>譖ｸ縺榊・縺励・謠先｡・/h3>
+                  <h3>リード文の提案</h3>
                   <p>{leadSuggestion}</p>
                 </div>
               )}
-              <p className="outline-note">窶ｻ 逅・ｧ｣縺ｮ驕輔＞縺ｫ豌励▼縺・◆繧峨∽ｸ九・繝懊ち繝ｳ縺九ｉmomo縺ｨ縺ｮ蟇ｾ隧ｱ繧堤ｶ壹￠縺ｦ險よｭ｣縺ｧ縺阪∪縺吶・/p>
+              <p className="outline-note">※ このアウトラインを使って本文を書いてみてください。momoとの対話を通じて、さらに詳しく話すこともできます。</p>
               <button
                 type="button"
                 className="secondary"
                 onClick={handleContinueDialogue}
                 disabled={isGeneratingOutline}
               >
-                momo縺ｨ蟇ｾ隧ｱ繧堤ｶ壹￠繧具ｼ郁ｨよｭ｣縺吶ｋ・・              </button>
+                momoと対話を続ける
             </div>
           )}
 
           {loading ? (
             <div className="action-card loading">
               <div className="spinner" />
-              <p>險倅ｺ九ョ繝ｼ繧ｿ繧定ｪｭ縺ｿ霎ｼ繧薙〒縺・∪縺・..</p>
+              <p>記事を読み込んでいます...</p>
             </div>
           ) : (
             <>
@@ -800,7 +800,7 @@ function ActionPageContent() {
                   className="text-input"
                   type="text"
                   value={title}
-                  placeholder="萓具ｼ壼ｭ舌←繧ゅ・蟇昴°縺励▽縺代〒豌励▼縺・◆縺薙→"
+                  placeholder="対話の内容から、タイトルを考えてみてください"
                   onChange={(e) => setTitle(e.target.value)}
                   disabled={!canEdit || status === 'submitted'}
                 />
@@ -808,35 +808,35 @@ function ActionPageContent() {
 
               <div className="action-card">
                 <div className="field-label-row">
-                  <label className="field-label" htmlFor="article-body">譛ｬ譁・/label>
-                  <span className="word-count">{wordCount}譁・ｭ・/span>
+                  <label className="field-label" htmlFor="article-body">本文</label>
+                  <span className="word-count">{wordCount}文字</span>
                 </div>
                 {!conversationReady && (
                   <div className="conversation-warning">
-                    <p>縺ｾ縺壹・momo縺ｨ縺ｮ蟇ｾ隧ｱ繧・縺､騾ｲ繧√※縺ｿ縺ｦ縺ｭ縲らｵゅｏ縺｣縺溘ｉ譛ｬ譁・ｬ・′髢区叛縺輔ｌ縺ｾ縺吶・/p>
+                    <p>まず、momoとの対話を3回以上進めてから、本文を書くことができます。</p>
                   </div>
                 )}
                 <textarea
                   id="article-body"
                   className="textarea"
                   value={body}
-                  placeholder="莉頑律諢溘§縺溘％縺ｨ繧・ｭｦ縺ｳ繧定・逕ｱ縺ｫ譖ｸ縺・※縺上□縺輔＞縲・
+                  placeholder="記事について、気分や考えを自由に書いてみてください"
                   onChange={(e) => setBody(e.target.value)}
                   rows={16}
                   disabled={!canEdit || status === 'submitted'}
                 />
-                <p className="field-hint">窶ｻ 300縲・00譁・ｭ励ｒ逶ｮ螳峨↓險伜・縺励※縺上□縺輔＞縲・/p>
+                <p className="field-hint">※ 300〜500文字程度を目安に書いてみてください。</p>
               </div>
 
               <div className="action-card memo-card">
                 <h2>繝｡繝｢繧ｹ繝壹・繧ｹ</h2>
-                <p>譖ｸ縺・※縺・ｋ騾比ｸｭ縺ｧ諤昴＞縺､縺・◆縺薙→縺ｯ縺薙％縺ｫ繝｡繝｢縺励※縺翫￥縺ｨ萓ｿ蛻ｩ縺ｧ縺吶ゆｿ晏ｭ伜ｯｾ雎｡縺ｫ縺ｯ蜷ｫ縺ｾ繧後∪縺帙ｓ縲・/p>
+                <p>書いた内容をメモに残しておくと、後から見返すことができます。メモは記事には含まれません。</p>
                 <textarea
                   className="textarea"
                   rows={6}
                   value={memoText}
                   onChange={(e) => setMemoText(e.target.value)}
-                  placeholder="豌励↓縺ｪ縺｣縺溯ｨ闡峨ｄ谺｡蝗樊嶌縺阪◆縺・ユ繝ｼ繝槭↑縺ｩ縲∬・逕ｱ縺ｫ繝｡繝｢縺励※縺上□縺輔＞"
+                  placeholder="気分や考えをメモに残しておきたいことを書いてみてください"
                 />
               </div>
 
@@ -847,7 +847,7 @@ function ActionPageContent() {
                   onClick={() => handleSave(false)}
                   disabled={!canEdit || saveStatus === 'saving'}
                 >
-                  {saveStatus === 'saving' ? '菫晏ｭ倅ｸｭ...' : '荳区嶌縺阪ｒ菫晏ｭ倥☆繧・}
+                  {saveStatus === 'saving' ? '保存中...' : '下書きとして保存する'}
                 </button>
 
                 <button
@@ -856,14 +856,14 @@ function ActionPageContent() {
                   onClick={() => handleSave(true)}
                   disabled={!canEdit || saveStatus === 'saving'}
                 >
-                  繝槭う繝壹・繧ｸ縺ｫ菫晏ｭ倥☆繧・                </button>
+                  マイページに保存する
               </div>
 
               {status === 'submitted' && submittedAt && (
                 <div className="action-card success">
-                  <h2>菫晏ｭ倥′螳御ｺ・＠縺ｾ縺励◆</h2>
+                  <h2>保存が完了しました</h2>
                   <p>菫晏ｭ俶律譎・ {new Date(submittedAt).toLocaleString('ja-JP')}</p>
-                  <p className="action-hint">蠑輔″邯壹″繧｢繝ｳ繧ｱ繝ｼ繝医∈縺ｮ縺泌鵠蜉帙ｒ縺企｡倥＞縺・◆縺励∪縺吶・/p>
+                  <p className="action-hint">アンケートに回答していただけると嬉しいです。</p>
                   <a
                     className="action-link"
                     href={GOOGLE_FORM_URL}
@@ -879,32 +879,32 @@ function ActionPageContent() {
 
         <aside className="action-sidebar">
           <div className="action-card info">
-            <h2>繧｢繝ｳ繧ｱ繝ｼ繝医↓縺､縺・※</h2>
-            <p>險倅ｺ九ｒ譖ｸ縺咲ｵゅ∴縺溘ｉ縲；oogle 繝輔か繝ｼ繝縺ｫ縺ｦ莉頑律縺ｮ豌励▼縺阪ｒ蜈ｱ譛峨＠縺ｦ縺上□縺輔＞縲Ｎomo 縺ｮ繧ｵ繝昴・繝医′縺輔ｉ縺ｫ濶ｯ縺上↑繧翫∪縺吶・/p>
+            <h2>アンケートについて</h2>
+            <p>記事を書いて、Google フォームで記事の体験を共有してください。momo の記事作成サポートが向上します。</p>
             <a
               className="action-link"
               href={GOOGLE_FORM_URL}
               target="_blank"
               rel="noreferrer noopener"
             >
-              繝壹Φ繧呈戟縺､荳譌･ 繧｢繝ｳ繧ｱ繝ｼ繝・            </a>
-            <p className="action-hint">窶ｻ LINE 縺ｮ繝ｪ繝・メ繝｡繝九Η繝ｼ縺九ｉ繧ょ酔縺倥Μ繝ｳ繧ｯ縺ｫ繧｢繧ｯ繧ｻ繧ｹ縺ｧ縺阪∪縺吶・/p>
+              ペンを持つ効果 アンケート
+            <p className="action-hint">※ LINE のメニューから再度アクセスできます。</p>
           </div>
 
           <div className="action-card info">
-            <h2>譖ｸ縺肴婿縺ｮ繝偵Φ繝・/h2>
+            <h2>記事作成のコツ</h2>
             <ul className="hint-list">
-              <li>蟆主・縺ｧ縺ｯ縲√え繧ｩ繝ｼ繝繧｢繝・・縺ｧ譖ｸ縺・◆繝｡繝｢繧・嶌縺榊・縺励・謠先｡医ｒ豢ｻ縺九☆縺ｨ繧ｹ繝繝ｼ繧ｺ縺ｧ縺吶・/li>
-              <li>蜃ｺ譚･莠銀・縺昴・縺ｨ縺阪・豌玲戟縺｡竊偵◎縺薙°繧峨・豌励▼縺坂・閾ｪ蛻・ｒ縺ｭ縺弱ｉ縺・ｨ闡峨√・鬆・〒譖ｸ縺上→縺ｾ縺ｨ縺ｾ繧翫ｄ縺吶＞縺ｧ縺吶・/li>
-              <li>荳区嶌縺堺ｿ晏ｭ倥〒騾比ｸｭ縺ｾ縺ｧ谿九○縺ｾ縺吶ゅ後・繧､繝壹・繧ｸ縺ｫ菫晏ｭ倥阪〒謠仙・螳御ｺ・↓縺ｪ繧翫∪縺吶・/li>
+              <li>気分が悪いときは、ウォームアップをスキップして、対話から始めることもできます。</li>
+              <li>気分が変わったら、momoとの対話を通じて、気分を整理していきましょう。</li>
+              <li>下書きとして保存して、いつでも編集できます。マイページに保存して、アンケートに回答してください。</li>
             </ul>
           </div>
 
           <div className="action-card history-card">
-            <h2>驕主悉縺ｮ險倅ｺ・/h2>
-            {historyLoading && <p>momo縺檎｢ｺ隱阪＠縺ｦ縺・∪縺吮ｦ</p>}
+            <h2>過去の記事</h2>
+            {historyLoading && <p>momoが読み込んでいます...</p>}
             {!historyLoading && history.length === 0 && (
-              <p>縺ｾ縺菫晏ｭ倥＆繧後◆險倅ｺ九・縺ゅｊ縺ｾ縺帙ｓ縲Ｎomo縺ｨ縺ｮ蟇ｾ隧ｱ縺九ｉ譖ｸ縺榊ｧ九ａ縺ｦ縺ｿ縺ｾ縺励ｇ縺・・/p>
+              <p>まだ保存した記事がありません。momoとの対話を通じて、記事を作成してみてください。</p>
             )}
             {!historyLoading && history.length > 0 && (
               <div className="history-list">
@@ -912,9 +912,9 @@ function ActionPageContent() {
                   <div key={article.id} className="history-item">
                     <div className="history-header">
                       <div>
-                        <div className="history-title">{article.title || '・医ち繧､繝医Ν縺ｪ縺暦ｼ・}</div>
+                        <div className="history-title">{article.title || 'タイトルなし'}</div>
                         <div className="history-meta">
-                          <span>{article.status === 'submitted' ? '謠仙・貂医∩' : '荳区嶌縺・}</span>
+                          <span>{article.status === 'submitted' ? 'マイページに保存' : '下書き'}</span>
                           <span>{new Date(article.updated_at).toLocaleDateString('ja-JP', {
                             month: 'short',
                             day: 'numeric',
@@ -942,7 +942,7 @@ function ActionPageContent() {
                           target="_blank"
                           rel="noreferrer noopener"
                         >
-                          PDF繧帝幕縺・                        </a>
+                          PDFを開く
                       ) : (
                         <button
                           type="button"
@@ -981,17 +981,17 @@ function ActionPageContent() {
         <div className="preview-overlay" onClick={() => setPreviewArticle(null)}>
           <div className="preview-card" onClick={(e) => e.stopPropagation()}>
             <div className="preview-header">
-              <h2>{previewArticle.title || '・医ち繧､繝医Ν縺ｪ縺暦ｼ・}</h2>
+              <h2>{previewArticle.title || 'タイトルなし'}</h2>
               <button type="button" onClick={() => setPreviewArticle(null)}>髢峨§繧・/button>
             </div>
             <div className="preview-meta">
-              <span>{previewArticle.status === 'submitted' ? '謠仙・貂医∩' : '荳区嶌縺・}</span>
+              <span>{previewArticle.status === 'submitted' ? 'マイページに保存' : '下書き'}</span>
               <span>{new Date(previewArticle.updated_at).toLocaleString('ja-JP')}</span>
             </div>
             <div className="preview-body">
               {previewArticle.body?.split(/\n+/).map((para, idx) => (
                 <p key={idx}>{para}</p>
-              )) || <p>譛ｬ譁・′縺ｾ縺菫晏ｭ倥＆繧後※縺・∪縺帙ｓ縲・/p>}
+              )) || <p>本文がまだ保存されていません。</p>}
             </div>
             <div className="preview-actions">
               {previewArticle.pdf_url ? (
@@ -1001,7 +1001,7 @@ function ActionPageContent() {
                   target="_blank"
                   rel="noreferrer noopener"
                 >
-                  PDF繧帝幕縺・                </a>
+                  PDFを開く
               ) : (
                 <button
                   type="button"
@@ -1026,7 +1026,7 @@ export default function ActionPage() {
         <div className="action-wrapper">
           <div className="action-card loading">
             <div className="spinner" />
-            <p>momo縺後・繝ｼ繧ｸ繧呈ｺ門ｙ縺励※縺・∪縺吮ｦ</p>
+            <p>momoを読み込んでいます...</p>
           </div>
         </div>
       }
