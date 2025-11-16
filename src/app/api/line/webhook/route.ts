@@ -59,7 +59,7 @@ async function handleImage(event: MessageEvent){
     // 画像の基本説明を生成
     const guessSys = '写真を見て 情景を1文で。断定しすぎず、やさしい文体。';
     const vision = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.1-mini',
       messages: [
         { role: 'system', content: guessSys },
         { role: 'user', content: [
@@ -74,9 +74,9 @@ async function handleImage(event: MessageEvent){
 
     // キャプション候補を2-3個生成
     const caps = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.1-mini',
       messages: [
-        { role: 'system', content: '次の文から、日記のキャプション候補を日本語で3つ。15〜28字。言い切り or 〜だなあ調。絵文字や記号なし。' },
+        { role: 'system', content: '次の説明から、日記のキャプション候補を日本語で3つ、15-18字。言い切りめor 〜だなあ調。絵文字や記号なし。' },
         { role: 'user', content: base }
       ],
       temperature: 0.7
