@@ -500,6 +500,21 @@ function ActionPageContent() {
     }
   }
 
+  function copyArticleBody(article: HistoryArticle) {
+    if (!article.body || article.body.trim().length === 0) {
+      setMessage('momo: この記事には本文がありません。');
+      return;
+    }
+
+    // クリップボードにコピー
+    navigator.clipboard.writeText(article.body).then(() => {
+      setMessage('momo: 本文をクリップボードにコピーしました。');
+    }).catch((err) => {
+      console.error('[ACTION] Failed to copy text:', err);
+      setMessage('momo: コピーに失敗しました。');
+    });
+  }
+
   async function loadArticleForEdit(article: HistoryArticle) {
     if (!userId || !article.id) return;
 
@@ -1016,24 +1031,13 @@ function ActionPageContent() {
                       >
                         本文を確認
                       </button>
-                      {article.pdf_url ? (
-                        <a
-                          className="secondary"
-                          href={article.pdf_url}
-                          target="_blank"
-                          rel="noreferrer noopener"
-                        >
-                          PDFを開く
-                        </a>
-                      ) : (
-                        <button
-                          type="button"
-                          className="secondary"
-                          onClick={() => _handleGeneratePdf(article)}
-                        >
-                          PDFを開く
-                        </button>
-                      )}
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => copyArticleBody(article)}
+                      >
+                        本文をコピー
+                      </button>
                     </div>
                   </div>
                 ))}
@@ -1076,24 +1080,13 @@ function ActionPageContent() {
               )) || <p>本文がまだ保存されていません。</p>}
             </div>
             <div className="preview-actions">
-              {_previewArticle.pdf_url ? (
-                <a
-                  className="primary"
-                  href={_previewArticle.pdf_url}
-                  target="_blank"
-                  rel="noreferrer noopener"
-                >
-                  PDFを開く
-                </a>
-              ) : (
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={() => _handleGeneratePdf(_previewArticle)}
-                >
-                  PDFを開く
-                </button>
-              )}
+              <button
+                type="button"
+                className="primary"
+                onClick={() => copyArticleBody(_previewArticle)}
+              >
+                本文をコピー
+              </button>
             </div>
           </div>
         </div>
