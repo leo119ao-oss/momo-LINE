@@ -298,7 +298,7 @@ async function handleLiffQA(
           ? `https://${process.env.VERCEL_URL}`
           : 'http://localhost:3000'
     );
-    const actionUrl = `${baseUrl}/action?user_id=${userId}`;
+    const actionUrl = `${baseUrl}/coach?user_id=${userId}`;
     
     // 現在の日付を取得して期間終了間近かどうかを判定
     const today = new Date();
