@@ -255,11 +255,11 @@ function ActionPageContent() {
 
   function handleWarmupSubmit() {
     if (!warmupMood) {
-      setMessage('momo: 縺ｾ縺壹・莉頑律縺ｮ豌怜・繧偵←繧後°1縺､驕ｸ繧薙〒縺ｿ縺ｦ縺ｭ縲りｿｷ縺｣縺溘ｉ縲檎音縺ｫ縺ｪ縺・阪〒螟ｧ荳亥､ｫ縺繧医・);
+      setMessage('momo: 気分を選んでから1つずつ進めていきましょう。まずは気分を選んでください。');
       return;
     }
     setWarmupComplete(true);
-    setMessage(`momo: ${warmupMood}豌怜・縺縺｣縺溘ｓ縺縺ｭ縲ゅ％縺薙°繧峨ｆ縺｣縺上ｊ謨ｴ逅・＠縺ｦ縺・％縺・よｬ｡縺ｯ逕ｻ髱｢繧剃ｸ九↓繧ｹ繧ｯ繝ｭ繝ｼ繝ｫ縺励※縲［omo縺ｨ縺ｮ蟇ｾ隧ｱ縺ｫ騾ｲ繧薙〒縺ｭ縲Ａ);
+    setMessage(momo: ${warmupMood}を選んでくれてありがとう。それでは、momoとの対話を始めましょう。);
   }
 
   async function fetchNextQuestion(previous: QATurn[], options?: { force?: boolean }) {
