@@ -105,11 +105,11 @@ function ActionPageContent() {
 
   const tasks = useMemo(() => (
     [
-      { key: 'warmup' as TaskKey, label: '繧ｦ繧ｩ繝ｼ繝繧｢繝・・', done: warmupComplete },
-      { key: 'conversation' as TaskKey, label: 'momo縺ｨ縺ｮ蟇ｾ隧ｱ', done: qaTurns.length >= 3 },
-      { key: 'draft' as TaskKey, label: '荳区嶌縺阪▼縺上ｊ', done: body.trim().length >= 200 },
-      { key: 'save' as TaskKey, label: '繝槭う繝壹・繧ｸ菫晏ｭ・, done: status === 'submitted' },
-      { key: 'survey' as TaskKey, label: '繧｢繝ｳ繧ｱ繝ｼ繝亥屓遲・, done: false },
+      { key: 'warmup' as TaskKey, label: 'ウォームアップ', done: warmupComplete },
+      { key: 'conversation' as TaskKey, label: 'momoとの対話', done: qaTurns.length >= 3 },
+      { key: 'draft' as TaskKey, label: '下書きを書く', done: body.trim().length >= 200 },
+      { key: 'save' as TaskKey, label: 'マイページに保存', done: status === 'submitted' },
+      { key: 'survey' as TaskKey, label: 'アンケート回答', done: false },
     ]
   ), [warmupComplete, qaTurns.length, body, status]);
 
