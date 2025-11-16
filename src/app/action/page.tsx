@@ -2,12 +2,13 @@ import { redirect } from 'next/navigation';
 
 export const dynamic = 'force-dynamic';
 
-export default function ActionPage({
+export default async function ActionPage({
   searchParams,
 }: {
-  searchParams: { user_id?: string };
+  searchParams: Promise<{ user_id?: string }> | { user_id?: string };
 }) {
-  const userId = searchParams?.user_id;
+  const params = await Promise.resolve(searchParams);
+  const userId = params?.user_id;
   
   // /dailyページにリダイレクト（user_idパラメータを保持）
   if (userId) {
