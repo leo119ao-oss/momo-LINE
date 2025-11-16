@@ -67,8 +67,8 @@ function ActionPageContent() {
   const [_showOutlinePrompt, setShowOutlinePrompt] = useState<boolean>(false);
   const [_isGeneratingOutline, setIsGeneratingOutline] = useState<boolean>(false);
   const [_outlineSuggestions, setOutlineSuggestions] = useState<OutlineSuggestion[]>([]);
-  const [_leadSuggestion, setLeadSuggestion] = useState<string>('');
-  const [_themeSuggestion, setThemeSuggestion] = useState<string>('');
+  const [leadSuggestion, setLeadSuggestion] = useState<string>('');
+  const [themeSuggestion, setThemeSuggestion] = useState<string>('');
   const [_warmupMood, _setWarmupMood] = useState<string>('');
   const [_warmupNote, _setWarmupNote] = useState<string>('');
   const [_warmupComplete, setWarmupComplete] = useState<boolean>(false);
