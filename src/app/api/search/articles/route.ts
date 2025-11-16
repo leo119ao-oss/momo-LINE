@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { searchArticles } from '@/lib/search';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import OpenAI from 'openai';
 
 export async function POST(request: NextRequest) {
   try {
@@ -27,14 +28,50 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // 結果を整形
-    const formattedArticles = articles.slice(0, limit).map((article) => ({
-      title: article.title || 'タイトルなし',
-      url: article.url || '#',
-      summary: article.content?.substring(0, 100) + '...' || '概要なし',
-      relevance: `${Math.round((article.similarity || 0) * 100)}%`,
-      similarity: article.similarity || 0
-    }));
+    // 結果を整形（要約を生成）
+    const formattedArticles = await Promise.all(
+      articles.slice(0, limit).map(async (article) => {
+        // AIで要約を生成
+        let summary = article.chunk?.substring(0, 100) + '...' || '概要なし';
+        
+        if (article.chunk && article.chunk.length > 50) {
+          try {
+            const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+            const completion = await openai.chat.completions.create({
+              model: 'gpt-4o-mini',
+              messages: [
+                {
+                  role: 'system',
+                  content: 'あなたは記事の要約を生成するAIです。提供された記事の内容を、母親が理解しやすいように簡潔に要約してください。100文字以内で、要点を明確に伝えてください。'
+                },
+                {
+                  role: 'user',
+                  content: `以下の記事を要約してください：\n\n${article.chunk}`
+                }
+              ],
+              temperature: 0.3,
+              max_tokens: 100
+            });
+            
+            const aiSummary = completion.choices[0]?.message?.content?.trim();
+            if (aiSummary) {
+              summary = aiSummary;
+            }
+          } catch (error) {
+            console.error('[ARTICLE_SEARCH] Error generating summary:', error);
+            // エラーの場合は元の要約を使用
+          }
+        }
+        
+        return {
+          title: article.title || 'タイトルなし',
+          url: article.url || '#',
+          summary: summary,
+          relevance: `${Math.round((article.score || 0) * 100)}%`,
+          similarity: article.score || 0
+        };
+      })
+    );
 
     // 検索ログを保存
     try {
