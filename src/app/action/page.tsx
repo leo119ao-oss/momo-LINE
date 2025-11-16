@@ -31,7 +31,7 @@ type HistoryArticle = {
   pdf_url?: string | null;
 };
 
-const GOOGLE_FORM_URL = 'https://forms.gle/nqzrEALFxcBHoALVA';
+const _GOOGLE_FORM_URL = 'https://forms.gle/nqzrEALFxcBHoALVA';
 
 function getErrorMessage(error: unknown, fallback: string) {
   if (error instanceof Error && error.message) {
@@ -54,30 +54,30 @@ function ActionPageContent() {
   const [title, setTitle] = useState<string>('');
   const [body, setBody] = useState<string>('');
   const [status, setStatus] = useState<'draft' | 'submitted'>('draft');
-  const [submittedAt, setSubmittedAt] = useState<string | null>(null);
+  const [_submittedAt, setSubmittedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [initializingUser, setInitializingUser] = useState<boolean>(true);
-  const [saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
-  const [message, setMessage] = useState<string>('');
+  const [_saveStatus, setSaveStatus] = useState<SaveStatus>('idle');
+  const [_message, setMessage] = useState<string>('');
   const [error, setError] = useState<string>('');
-  const [qaTurns, setQaTurns] = useState<QATurn[]>([]);
-  const [currentQuestion, setCurrentQuestion] = useState<string>('');
-  const [currentAnswer, setCurrentAnswer] = useState<string>('');
-  const [questionLoading, setQuestionLoading] = useState<boolean>(false);
-  const [showOutlinePrompt, setShowOutlinePrompt] = useState<boolean>(false);
-  const [isGeneratingOutline, setIsGeneratingOutline] = useState<boolean>(false);
-  const [outlineSuggestions, setOutlineSuggestions] = useState<OutlineSuggestion[]>([]);
-  const [leadSuggestion, setLeadSuggestion] = useState<string>('');
-  const [themeSuggestion, setThemeSuggestion] = useState<string>('');
-  const [warmupMood, setWarmupMood] = useState<string>('');
-  const [warmupNote, setWarmupNote] = useState<string>('');
-  const [warmupComplete, setWarmupComplete] = useState<boolean>(false);
-  const [memoText, setMemoText] = useState<string>('');
-  const [history, setHistory] = useState<HistoryArticle[]>([]);
-  const [historyLoading, setHistoryLoading] = useState<boolean>(false);
-  const [previewArticle, setPreviewArticle] = useState<HistoryArticle | null>(null);
-  const [pauseAfterOutline, setPauseAfterOutline] = useState<boolean>(false);
-  const [manualProgress, setManualProgress] = useState<boolean>(false);
+  const [_qaTurns, setQaTurns] = useState<QATurn[]>([]);
+  const [_currentQuestion, setCurrentQuestion] = useState<string>('');
+  const [_currentAnswer, setCurrentAnswer] = useState<string>('');
+  const [_questionLoading, setQuestionLoading] = useState<boolean>(false);
+  const [_showOutlinePrompt, setShowOutlinePrompt] = useState<boolean>(false);
+  const [_isGeneratingOutline, setIsGeneratingOutline] = useState<boolean>(false);
+  const [_outlineSuggestions, setOutlineSuggestions] = useState<OutlineSuggestion[]>([]);
+  const [_leadSuggestion, setLeadSuggestion] = useState<string>('');
+  const [_themeSuggestion, setThemeSuggestion] = useState<string>('');
+  const [_warmupMood, _setWarmupMood] = useState<string>('');
+  const [_warmupNote, _setWarmupNote] = useState<string>('');
+  const [_warmupComplete, setWarmupComplete] = useState<boolean>(false);
+  const [_memoText, _setMemoText] = useState<string>('');
+  const [_history, setHistory] = useState<HistoryArticle[]>([]);
+  const [_historyLoading, setHistoryLoading] = useState<boolean>(false);
+  const [_previewArticle, _setPreviewArticle] = useState<HistoryArticle | null>(null);
+  const [_pauseAfterOutline, setPauseAfterOutline] = useState<boolean>(false);
+  const [_manualProgress, _setManualProgress] = useState<boolean>(false);
   const [showCorrectionReminder, setShowCorrectionReminder] = useState<boolean>(true);
   const [correctionMode, setCorrectionMode] = useState<boolean>(false);
   const latestAnswerRef = useRef<string>('');
@@ -103,15 +103,15 @@ function ActionPageContent() {
     }
   }, [participantId]);
 
-  const tasks = useMemo(() => (
+  const _tasks = useMemo(() => (
     [
-      { key: 'warmup' as TaskKey, label: 'ウォームアップ', done: warmupComplete },
-      { key: 'conversation' as TaskKey, label: 'momoとの対話', done: qaTurns.length >= 3 },
+      { key: 'warmup' as TaskKey, label: 'ウォームアップ', done: _warmupComplete },
+      { key: 'conversation' as TaskKey, label: 'momoとの対話', done: _qaTurns.length >= 3 },
       { key: 'draft' as TaskKey, label: '下書きを書く', done: body.trim().length >= 200 },
       { key: 'save' as TaskKey, label: 'マイページに保存', done: status === 'submitted' },
       { key: 'survey' as TaskKey, label: 'アンケート回答', done: false },
     ]
-  ), [warmupComplete, qaTurns.length, body, status]);
+  ), [_warmupComplete, _qaTurns.length, body, status]);
 
   // Resolve user id from query parameter or temporary token
   useEffect(() => {
@@ -232,7 +232,7 @@ function ActionPageContent() {
       return;
     }
 
-    if (qaTurns.length === 0 && !currentQuestion) {
+    if (_qaTurns.length === 0 && !_currentQuestion) {
       fetchNextQuestion([], { force: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -242,10 +242,10 @@ function ActionPageContent() {
     return body ? body.replace(/\s+/g, '').length : 0;
   }, [body]);
 
-  const conversationReady = qaTurns.length >= 3;
-  const canEdit = Boolean(userId && articleId && !loading && conversationReady);
+  const _conversationReady = _qaTurns.length >= 3;
+  const _canEdit = Boolean(userId && articleId && !loading && _conversationReady);
 
-  const moodPresets = [
+  const _moodPresets = [
     { value: 'いい感じ', label: 'いい感じ！気分が良い' },
     { value: 'まあまあ', label: 'まあまあ' },
     { value: 'ドキドキ', label: 'ちょっとドキドキ' },
@@ -253,13 +253,13 @@ function ActionPageContent() {
     { value: 'わからない', label: 'わからない。まだ整理できていない' },
   ];
 
-  function handleWarmupSubmit() {
-    if (!warmupMood) {
+  function _handleWarmupSubmit() {
+    if (!_warmupMood) {
       setMessage('momo: 気分を選んでから1つずつ進めていきましょう。まずは気分を選んでください。');
       return;
     }
     setWarmupComplete(true);
-    setMessage(`momo: ${warmupMood}を選んでくれてありがとう。それでは、momoとの対話を始めましょう。`);
+    setMessage(`momo: ${_warmupMood}を選んでくれてありがとう。それでは、momoとの対話を始めましょう。`);
   }
 
   async function fetchNextQuestion(previous: QATurn[], options?: { force?: boolean }) {
@@ -305,11 +305,11 @@ function ActionPageContent() {
     }
   }
 
-  async function handleAnswerSubmit() {
-    const trimmed = currentAnswer.trim();
-    if (!trimmed || !currentQuestion) return;
+  async function _handleAnswerSubmit() {
+    const trimmed = _currentAnswer.trim();
+    if (!trimmed || !_currentQuestion) return;
 
-    const draftTurns = [...qaTurns, { question: currentQuestion, answer: trimmed }];
+    const draftTurns = [..._qaTurns, { question: _currentQuestion, answer: trimmed }];
     setQaTurns(draftTurns);
     setCurrentAnswer('');
     setCurrentQuestion('');
@@ -323,7 +323,7 @@ function ActionPageContent() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          question: currentQuestion,
+          question: _currentQuestion,
           answer: trimmed,
         }),
       });
@@ -364,12 +364,12 @@ function ActionPageContent() {
     }
   }
 
-  function handleOutlinePromptDecline() {
+  function _handleOutlinePromptDecline() {
     setShowOutlinePrompt(false);
-    fetchNextQuestion(qaTurns);
+    fetchNextQuestion(_qaTurns);
   }
 
-  async function handleOutlinePromptAccept() {
+  async function _handleOutlinePromptAccept() {
     if (!participantId) {
       setMessage('ユーザー情報を取得できませんでした。ページを再読み込みしてください。');
       setShowOutlinePrompt(false);
@@ -437,7 +437,7 @@ function ActionPageContent() {
     }
   }
 
-  function applyOutline(outline: OutlineSuggestion) {
+  function _applyOutline(outline: OutlineSuggestion) {
     if (!outline) return;
     if (!title) {
       setTitle(outline.title);
@@ -453,7 +453,7 @@ function ActionPageContent() {
     setMessage('momo: アウトラインを適用しました。本文を書いてみてください。');
   }
 
-  function handleContinueDialogue() {
+  function _handleContinueDialogue() {
     setPauseAfterOutline(false);
     setCorrectionMode(true);
     setShowCorrectionReminder(false);
@@ -464,7 +464,7 @@ function ActionPageContent() {
     });
   }
 
-  async function handleGeneratePdf(targetArticle: HistoryArticle) {
+  async function _handleGeneratePdf(targetArticle: HistoryArticle) {
     if (!userId) {
       setMessage('momo: PDFを生成するにはLINEからアクセスしてください。');
       return;
@@ -502,7 +502,7 @@ function ActionPageContent() {
     }
   }
 
-  async function handleSave(markSubmitted = false) {
+  async function _handleSave(markSubmitted = false) {
     if (!articleId) {
       setMessage('記事情報の取得に失敗しました。ページを再読み込みしてください。');
       return;

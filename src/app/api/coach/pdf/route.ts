@@ -71,7 +71,7 @@ export async function POST(req: NextRequest) {
         // 長い行を折り返す（簡易実装）
         const words = line.split('');
         let currentLine = '';
-        let x = margin;
+        const x = margin;
 
         for (const char of words) {
           const testLine = currentLine + char;
