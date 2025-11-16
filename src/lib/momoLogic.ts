@@ -347,7 +347,7 @@ async function handleLiffQA(
       : LIFF_QA_SYSTEM;
     
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
+      model: 'gpt-5.1-mini',
           messages: [
         { role: 'system', content: enhancedSystemPrompt },
         ...conversationHistory,
