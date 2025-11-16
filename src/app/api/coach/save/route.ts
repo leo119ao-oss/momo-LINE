@@ -14,8 +14,8 @@ const saveSchema = z.object({
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const { article_id, title, body, word_count, status } = saveSchema.parse(body);
+    const requestBody = await req.json();
+    const { article_id, title, body, word_count, status } = saveSchema.parse(requestBody);
 
     const updateData: any = {
       body,
