@@ -9,125 +9,27 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import type { MessageEvent } from '@line/bot-sdk';
 import { findOrCreateParticipant } from '@/lib/participants';
 import { getOrStartSession, endSession } from '@/lib/session';
-import { checkStoryCompleteness } from '@/lib/conversationFlow';
 import OpenAI from 'openai';
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 
-
-function emotionQuickReply() {
-  return {
-    type: 'flex' as const,
-    altText: 'いまの気分を選んでください',
-    contents: {
-      type: 'bubble' as const,
-      body: {
-        type: 'box' as const,
-        layout: 'vertical' as const,
-        contents: [
-          {
-            type: 'text' as const,
-            text: 'いまの気分は？',
-            size: 'xl' as const,
-            weight: 'bold' as const,
-            color: '#333333',
-            align: 'center' as const
-          },
-          {
-            type: 'box',
-            layout: 'vertical' as const,
-            spacing: 'md' as const,
-            margin: 'lg' as const,
-            contents: [
-              {
-                type: 'box' as const,
-                layout: 'horizontal' as const,
-                spacing: 'sm' as const,
-                contents: [
-                  {
-                    type: 'button' as const,
-                    action: {
-                      type: 'postback' as const,
-                      label: '😊',
-                      data: 'emotion:smile'
-                    },
-                    style: 'primary' as const,
-                    color: '#FFB6C1',
-                    height: 'sm'
-                  },
-                  {
-                    type: 'button' as const,
-                    action: {
-                      type: 'postback' as const,
-                      label: '😐',
-                      data: 'emotion:neutral'
-                    },
-                    style: 'primary' as const,
-                    color: '#D3D3D3',
-                    height: 'sm'
-                  },
-                  {
-                    type: 'button' as const,
-                    action: {
-                      type: 'postback' as const,
-                      label: '😩',
-                      data: 'emotion:tired'
-                    },
-                    style: 'primary' as const,
-                    color: '#FFA07A',
-                    height: 'sm'
-                  }
-                ]
-              },
-              {
-                type: 'box' as const,
-                layout: 'horizontal' as const,
-                spacing: 'sm' as const,
-                contents: [
-                  {
-                    type: 'button' as const,
-                    action: {
-                      type: 'postback' as const,
-                      label: '😡',
-                      data: 'emotion:anger'
-                    },
-                    style: 'primary' as const,
-                    color: '#FF6B6B',
-                    height: 'sm'
-                  },
-                  {
-                    type: 'button' as const,
-                    action: {
-                      type: 'postback' as const,
-                      label: '😢',
-                      data: 'emotion:sad'
-                    },
-                    style: 'primary' as const,
-                    color: '#87CEEB',
-                    height: 'sm'
-                  },
-                  {
-                    type: 'button' as const,
-                    action: {
-                      type: 'postback' as const,
-                      label: '🤔',
-                      data: 'emotion:think'
-                    },
-                    style: 'primary' as const,
-                    color: '#DDA0DD',
-                    height: 'sm'
-                  }
-                ]
-              }
-            ]
-          }
-        ]
-      }
-    }
-  };
+// 本番URLを取得するヘルパー関数
+function getProductionUrl(): string {
+  // NEXT_PUBLIC_APP_URLが設定されている場合はそれを優先（本番環境用）
+  if (process.env.NEXT_PUBLIC_APP_URL) {
+    return process.env.NEXT_PUBLIC_APP_URL;
+  }
+  
+  // 本番環境の場合のみVERCEL_URLを使用（プレビューURLは使用しない）
+  if (process.env.VERCEL_ENV === 'production' && process.env.VERCEL_URL) {
+    return `https://${process.env.VERCEL_URL}`;
+  }
+  
+  // 開発環境
+  return process.env.VERCEL_URL 
+    ? `https://${process.env.VERCEL_URL}` 
+    : 'http://localhost:3000';
 }
-
-
 
 async function handleImage(event: MessageEvent){
   console.log('IMG_EVENT: Processing image message', event.message.id);
@@ -212,6 +114,67 @@ async function handleImage(event: MessageEvent){
   }
 }
 
+async function replyWithLoginLink(replyToken: string, userId: string, options: { isLoginRequest: boolean }) {
+  const baseUrl = getProductionUrl();
+
+  try {
+    const tokenRes = await fetch(`${baseUrl}/api/auth/token`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: userId }),
+    });
+
+    if (tokenRes.ok) {
+      const tokenData = await tokenRes.json();
+      if (tokenData.ok && tokenData.token) {
+        const loginUrl = `${baseUrl}/action?token=${tokenData.token}`;
+        const message = options.isLoginRequest
+          ? `記事コーチモードにアクセスするためのリンクです。
+
+以下のURLをクリックしてください：
+${loginUrl}
+
+※このリンクは10分間有効です。
+※スマホでもPCでもアクセスできます。`
+          : `研究協力のための記事作成サポートを開始できます！
+
+以下のリンクから記事コーチモードにアクセスしてください：
+${loginUrl}
+
+※このリンクは10分間有効です。
+※スマホでもPCでもアクセスできます。`;
+
+        await lineClient.replyMessage(replyToken, {
+          type: 'text' as const,
+          text: message,
+        } as any);
+        return;
+      }
+    }
+  } catch (err) {
+    console.error('[WEBHOOK] Token generation error:', err);
+  }
+
+  // トークン生成に失敗した場合のフォールバック
+  const fallbackUrl = `${baseUrl}/action?user_id=${userId}`;
+  const fallbackMessage = options.isLoginRequest
+    ? `記事コーチモードにアクセスするためのリンクです。
+
+以下のURLをクリックしてください：
+${fallbackUrl}
+
+※こちらは通常のログイン用URLです。`
+    : `研究協力のための記事作成サポートを開始できます！
+
+以下のリンクから記事コーチモードにアクセスしてください：
+${fallbackUrl}`;
+
+  await lineClient.replyMessage(replyToken, {
+    type: 'text' as const,
+    text: fallbackMessage,
+  } as any);
+}
+
 export async function POST(req: NextRequest) {
   console.log('[WEBHOOK] Request received');
 
@@ -242,203 +205,72 @@ export async function POST(req: NextRequest) {
 
         console.log(`[WEBHOOK] Session state: isNew=${isNew}, sessionId=${session?.id}`);
 
+        const textMessage =
+          event.type === 'message' && event.message?.type === 'text'
+            ? (event.message.text ?? '').trim()
+            : '';
+        const loginKeywords = ['ログイン', '認証', 'login'];
+        const articleKeywords = ['記事を書く', '記事', 'コーチ', '日記', '記事コーチ'];
+        const isLoginRequest = textMessage
+          ? loginKeywords.some((keyword) => textMessage.toLowerCase().includes(keyword.toLowerCase()))
+          : false;
+        const isArticleRequest = textMessage
+          ? articleKeywords.some((keyword) => textMessage.includes(keyword))
+          : false;
+
         // 画像処理（最優先）
         if (event.type === 'message' && event.message.type === 'image') {
           await handleImage(event as any);
           continue;
         }
 
-        // 新規セッション開始時は感情アイコンだけ出す
+        // 新規セッション開始時はLIFFアプリの案内
         if (isNew) {
-          console.log('[WEBHOOK] Starting new session, showing emotion buttons');
-          // テキストメッセージとFlexメッセージを分けて送信
+          if (textMessage && (isLoginRequest || isArticleRequest) && event.replyToken) {
+            await replyWithLoginLink(event.replyToken, userId, { isLoginRequest });
+            continue;
+          }
+
+          console.log('[WEBHOOK] Starting new session, showing LIFF app introduction');
           await lineClient.replyMessage(event.replyToken, {
             type: 'text' as const,
-            text: 'こんにちは！'
+            text: (() => {
+              const baseUrl = getProductionUrl();
+              const actionUrl = `${baseUrl}/action?user_id=${userId}`;
+              
+              return `こんにちは！Momoです。
+
+LIFFアプリで何ができるか知りたいですか？
+
+「使い方を教えて」「今日の1分って何？」「今日の気持ちって何？」など、気軽に質問してください。
+
+また、天気やニュース、レシピなど、ネット検索が必要な質問にもお答えできます。
+
+━━━━━━━━━━━━━━━━
+📝 研究協力のお願い
+━━━━━━━━━━━━━━━━
+
+研究協力のための日記（記事）作成をサポートしています！
+
+期間：11/8–11/24（延長）
+以下のURLから記事コーチモードにアクセスできます：
+${actionUrl}
+
+テーマ選びからアウトライン作成、本文執筆までサポートします。300-500字を目安に、無理なく書き上げられます。
+
+日記を書いた後は、「ペンを持つ効果アンケート」にもご協力いただけると嬉しいです。リッチメニューの「アンケート」ボタンからアクセスできます。`;
+            })()
           } as any);
-          
-          // Flexメッセージを別途送信
-          await lineClient.pushMessage(userId, emotionQuickReply() as any);
           continue;
         }
 
         console.log('[WEBHOOK] Existing session, checking for text messages or postbacks');
 
-        // POSTBACK（emotion/deep/diary/session）
+        // POSTBACK（簡素化）
         if (event.type === 'postback') {
           const data: string = event.postback?.data || '';
-          if (data.startsWith('emotion:')) {
-            const emotionKey = data.split(':')[1];
-            const emotionLabels = {
-              'smile': '😊 うれしい',
-              'neutral': '😐 ふつう',
-              'tired': '😩 つかれた',
-              'anger': '😡 いらいら',
-              'sad': '😢 かなしい',
-              'think': '🤔 かんがえる'
-            };
-            const selectedEmotion = emotionLabels[emotionKey as keyof typeof emotionLabels] || emotionKey;
-            
-            // 感情選択時の応答を生成
-            try {
-              console.log('[WEBHOOK] Processing emotion selection:', emotionKey);
-              
-              // 傾聴の応答と適切な問いかけを生成
-              let response = '';
-              
-              if (emotionKey === 'tired') {
-                response = '疲れているんですね。どんなことが一番疲れさせてる？';
-              } else if (emotionKey === 'smile') {
-                response = 'うれしい気持ちなんですね。どんなことがうれしくさせてる？';
-              } else if (emotionKey === 'neutral') {
-                response = 'ふつうの気持ちなんですね。今日はどんな一日だった？';
-              } else if (emotionKey === 'anger') {
-                response = 'いらいらしているんですね。どんなことがイライラさせてる？';
-              } else if (emotionKey === 'sad') {
-                response = 'かなしい気持ちなんですね。どんなことが悲しくさせてる？';
-              } else if (emotionKey === 'think') {
-                response = '考えているんですね。どんなことを考えてる？';
-              } else {
-                response = `${selectedEmotion}という気持ちなんですね。どんなことがその気持ちにさせてる？`;
-              }
-              
-              // 対話を促すメッセージを追加
-              response += `\n\nその気持ちについて、もう少し詳しく教えてもらえる？`;
-              
-              // AIの応答を送信
-              await lineClient.replyMessage(event.replyToken, {
-                type: 'text' as const,
-                text: response
-              } as any);
-              
-            } catch (error) {
-              console.error('[WEBHOOK] Error processing emotion selection:', error);
-              // エラー時の応答
-              await lineClient.replyMessage(event.replyToken, {
-                type: 'text' as const,
-                text: `${selectedEmotion}を選んでくれたんですね。どんなことがその気持ちにさせてる？`
-              } as any);
-            }
-            continue;
-          }
-          if (data.startsWith('deep:')) {
-            try {
-              const [, emotionKey, choice] = data.split(':');
-              const userText = `${emotionKey}:${choice}`;
-              
-              console.log(`[WEBHOOK] Processing deep postback: emotionKey=${emotionKey}, choice=${choice}`);
-              
-            // 傾聴応答を生成
-            console.log('[WEBHOOK] Generating reflective response...');
-            const base = await generateReflectiveCore(userText);
-            console.log('[WEBHOOK] Generated reflective response:', base.substring(0, 100) + '...');
-
-            // RAG検索を実行して示唆を生成
-            let insight = '';
-            try {
-              console.log('[WEBHOOK] Starting RAG search for insights...');
-              const { searchArticles } = await import('@/lib/search');
-              const { generateInsights } = await import('@/lib/insightGenerator');
-              
-              // 感情と理由から検索クエリを生成
-              const searchQuery = `${emotionKey} ${choice} 子育て 母親`;
-              const articles = await searchArticles(searchQuery);
-              
-              if (articles.length > 0) {
-                console.log('[WEBHOOK] Found articles, generating insights...');
-                const insights = await generateInsights(emotionKey, choice, userText);
-                
-                if (insights.insights.length > 0) {
-                  insight = `お母さん大学の記事を参考に、こんな視点はいかがでしょうか：\n${insights.insights.map(i => `・${i}`).join('\n')}`;
-                  console.log('[WEBHOOK] Generated insights:', insight);
-                }
-              } else {
-                console.log('[WEBHOOK] No articles found, using fallback insight');
-                insight = 'その気持ち、よく分かります。もう少し詳しく教えてもらえる？';
-              }
-            } catch (ragError) {
-              console.error('[WEBHOOK] RAG search failed:', ragError);
-              insight = 'その気持ち、よく分かります。もう少し詳しく教えてもらえる？';
-            }
-
-            // 会話の完全性をチェック
-            const { data: conversationHistory } = await supabaseAdmin
-              .from('chat_logs')
-              .select('role, content')
-              .eq('participant_id', participant.id)
-              .order('created_at', { ascending: true })
-              .limit(15);
-            
-            const isComplete = checkStoryCompleteness(conversationHistory || []);
-            
-            // 自然な応答を送信（終了選択は強制しない）
-            let fullResponse = [base, insight].filter(Boolean).join('\n');
-            
-            // 会話が完全な場合は日記推奨を追加
-            if (isComplete) {
-              const { recommendDiary } = await import('@/lib/diaryRecommender');
-              const diaryRecommendation = await recommendDiary(conversationHistory || [], participant.id);
-              
-              if (diaryRecommendation.shouldRecommend) {
-                fullResponse += `\n\n${diaryRecommendation.recommendationMessage}`;
-                if (diaryRecommendation.liffUrl) {
-                  fullResponse += `\n\n日記を書く: ${diaryRecommendation.liffUrl}`;
-                }
-              }
-            } else {
-              // 会話が不完全な場合は適切な深堀りを促す
-              const userMessages = (conversationHistory || []).filter(msg => msg.role === 'user');
-              const totalLength = userMessages.reduce((sum, msg) => sum + msg.content.length, 0);
-              
-              // より自然な深堀り質問
-              if (userMessages.length < 3) {
-                fullResponse += `\n\nどんなことが一番気になってる？`;
-              } else if (userMessages.length < 6 || totalLength < 200) {
-                fullResponse += `\n\nもう少し詳しく教えてもらえる？`;
-              }
-            }
-            
-            console.log('[WEBHOOK] Sending natural response...');
-            await lineClient.replyMessage(event.replyToken, {
-              type: 'text' as const,
-              text: fullResponse
-            } as any);
-            
-            console.log('[WEBHOOK] Natural conversation flow completed');
-              continue;
-            } catch (deepError) {
-              console.error('[WEBHOOK] Error in deep postback processing:', deepError);
-              console.error('[WEBHOOK] Error details:', JSON.stringify(deepError, null, 2));
-              
-              // エラーが発生した場合でも、ユーザーにはエラーメッセージを送信
-              try {
-                await lineClient.replyMessage(event.replyToken, {
-                  type: 'text',
-                  text: 'すみません、処理中にエラーが発生しました。もう一度お試しください。'
-                } as any);
-              } catch (replyError) {
-                console.error('[WEBHOOK] Failed to send error message:', replyError);
-                // リプライも失敗した場合は、pushMessageを試す
-                try {
-                  await lineClient.pushMessage(userId, {
-                    type: 'text',
-                    text: 'すみません、システムエラーが発生しました。しばらく時間をおいてからお試しください。'
-                  } as any);
-                } catch (pushError) {
-                  console.error('[WEBHOOK] Failed to send push error message:', pushError);
-                }
-              }
-              continue;
-            }
-          }
-          if (data === 'diary:save') {
-            // 日記保存処理（簡易版）
-            await lineClient.replyMessage(event.replyToken, {
-              type: 'text' as const,
-              text: '今日の1分にメモしました。おつかれさま！'
-            } as any);
-            continue;
-          }
+          
+          // セッション終了
           if (data === 'session:end') {
             await endSession(session.id);
             await lineClient.replyMessage(event.replyToken, {
@@ -447,56 +279,53 @@ export async function POST(req: NextRequest) {
             } as any);
             continue;
           }
+          
+          // セッション継続
           if (data === 'session:cont') {
-            // セッション継続は削除（新しい会話フローでは不要）
             await lineClient.replyMessage(event.replyToken, {
               type: 'text' as const,
-              text: '新しい会話を始めましょう。'
+              text: 'LIFFアプリについて何か質問があれば、気軽に聞いてください。'
             } as any);
-            
-            // Flexメッセージを別途送信
-            await lineClient.pushMessage(userId, emotionQuickReply() as any);
             continue;
           }
         }
 
         // MESSAGE（text/image 等）。textは自由入力扱い
         if (event.type === 'message' && event.message?.type === 'text') {
-          const text: string = event.message.text?.trim() ?? '';
+          const text: string = textMessage;
 
           console.log(`[WEBHOOK] Text message received: "${text}"`);
 
-          // 新しい会話フローを使用
+          // LIFFアプリQ&Aシステムを使用
           try {
+            if (isLoginRequest || isArticleRequest) {
+              await replyWithLoginLink(event.replyToken, userId, { isLoginRequest });
+              continue;
+            }
+
             const aiMessage = await handleTextMessage(userId, text);
             
-            // 傾聴の応答を送信
+            // LIFFアプリQ&Aの応答を送信
             await lineClient.replyMessage(event.replyToken, {
               type: 'text' as const,
               text: aiMessage
             } as any);
             
-            // 感情選択ボタンも表示（ユーザーが新しい感情を表現できるように）
-            console.log('[WEBHOOK] Showing emotion buttons for continued conversation');
-            await lineClient.pushMessage(userId, emotionQuickReply() as any);
             continue;
           } catch (textError) {
             console.error('[WEBHOOK] Error processing text message:', textError);
             
-            // エラーが発生した場合は従来の傾聴応答を使用
-            const base = await generateReflectiveCore(text);
+            // エラー時の応答
             await lineClient.replyMessage(event.replyToken, {
               type: 'text' as const,
-              text: base
+              text: 'すみません、LIFFアプリの機能について詳しく説明できませんでした。もう一度お聞かせください。'
             } as any);
-            
-            await lineClient.pushMessage(userId, emotionQuickReply() as any);
             continue;
           }
         }
 
         // 他タイプ（スタンプ等）はミニ応答のみ
-        await lineClient.replyMessage(event.replyToken, { type: 'text', text: '受け取ったよ。' } as any);
+        await lineClient.replyMessage(event.replyToken, { type: 'text', text: 'LIFFアプリについて何か質問があれば、気軽に聞いてください。天気やニュース、レシピなど、ネット検索が必要な質問にもお答えできます。' } as any);
 
       } catch (e) {
         console.error('[WEBHOOK_ERROR]', e);

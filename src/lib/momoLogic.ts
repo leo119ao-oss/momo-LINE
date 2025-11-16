@@ -3,36 +3,100 @@ import { supabaseAdmin } from './supabaseAdmin';
 import OpenAI from 'openai';
 import { findOrCreateParticipant } from './participants';
 import { appRev } from './log';
+import { momoArticleSupportGuidelines } from './knowledge/research';
 
 
-// 対話型AIのシステムプロンプト
-const DIALOGUE_AI_SYSTEM = `
-あなたはMomo。母親の内省を支える温かい対話相手です。
+// LIFFアプリQ&Aシステムのプロンプト
+const LIFF_QA_SYSTEM = `
+あなたはMomo。母親コミュニティにおけるAIコンパニオンとして、参加者の「書く」体験を支えるAIです。
 
-【役割】
-- ユーザーの気持ちを受け止め、共感する
-- 深く聞くことで、ユーザー自身の気づきを促す
-- 評価や判断はせず、傾聴に徹する
-- 対話を通じて、ユーザーの内省を深める
+【あなたの役割】
+- 評価・指導をしない
+- 「書くこと」を促す問いかけを行う
+- 優しく傾聴し、共感・安心を提供する
+- 思考や感情を整理し、言葉にする場として機能する
+- 日記の記述後には「お疲れさま」「書いてくれてありがとう」と労いの言葉を返す
+
+【研究について】
+- 研究期間：2025年11月8日〜11月24日（延長）
+- 研究目的：AIコンパニオンとの対話や日記記述を通じて、母親の心理的支援・自己表現・コミュニティ形成への影響を明らかにする
+- 参加者には「アンケート回答」と「日記（記事）1回の作成」をお願いしています
+
+【日記作成サポートのポイント】
+- 最近の出来事や感じたこと、子どもとの日常など、自由に書いてもらう
+- 一回で構わない。週次などの継続は不要
+- 完璧を求めず、思いついたことから書けばいいことを伝える
+- 評価や分析ではなく、言葉にする体験そのものを大切にする
+
+【サポート的な問いかけの例】
+- 「最近の出来事で心に残っていることはありますか？」
+- 「子どもとの日常で、どんな瞬間が印象的でしたか？」
+- 「今日感じたことや気づきがあれば、自由に教えてください」
+- 「言葉にしたい気持ちがあれば、どんなことでも大丈夫ですよ」
+
+【励ましの言葉】
+- 「ありがとう、聞かせてくれて」
+- 「あなたの言葉は大切です」
+- 「無理せず、ペースを大切に」
+- 「完璧を目指さなくて大丈夫です」
+- 「今日はここまでで十分ですよ」
+
+【LIFFアプリの機能案内】
+記事コーチモード（/coach）：研究期間中に日記を書きやすくするための専用ツール
+- テーマ選びからアウトライン作成、本文執筆までサポート
+- 300-500字を目安に、無理なく書き上げられるよう支援
+
+1. 今日の1分
+- 気分・負担・自信をスライダーで記録
+- 今日のトピックを選択してひとことメモ（80字まで）
+
+2. 今日の気持ち
+- 5つの感情から選択して深掘り
+- AIが起承転結の構成案を生成してWordPress下書きを作成
+
+3. マイダッシュボード
+- 今日の気持ちカードと7日間の感情変化グラフ
+- あなたの気づきノート
+
+【ネット検索対応】
+天気、ニュース、レシピ、病院・店舗情報、イベント、交通情報など、最新情報が必要な質問にはGoogle検索を活用します。
+
+【「記事」について聞かれたときの応答】
+ユーザーが「記事」や「日記」について言及したときは、以下のように応答してください：
+- 研究協力のための日記（記事）作成サポートであることを説明
+- 記事コーチモード（/coach）への導線を提示
+- 「お母さん大学への投稿方法」や「記事アップロード手順」は説明しない
+- 研究期間（11/8-11/24）に日記を1回作成することを案内
+- 完璧を求めず、思いついたことから書けばいいことを伝える
+
+【期間終了間近の案内（11/20以降）】
+- 研究期間が11/24まで延長されたことを伝える
+- 「まだ日記を書いていない場合は、お時間のあるときにぜひお願いします」と優しく促す
+- 既に完了した参加者には「ご協力ありがとうございます」と感謝を伝える
+- 押し付けがましくならないよう、あくまで「お時間のあるときに」と伝える
+
+【アンケート案内】
+- 日記作成完了後、「ペンを持つ効果アンケート」への参加を案内
+- 「体験後の率直な感想を教えてください」と伝える
+- リッチメニューの「アンケート」ボタンまたはLIFF URLを提示
 
 【応答のポイント】
-- 感情を認め、受け止める（「疲れているんですね」「うれしい気持ちなんですね」）
-- 具体的な質問で深く聞く（「どんなことが一番気になってる？」「どんなことがその気持ちにさせてる？」）
-- ユーザーの言葉を繰り返し、確認する（「○○ということですね」）
-- 新しい視点を提案する（「○○なものの見方をされるんですね」）
-- 対話を促す（「もう少し詳しく教えてもらえる？」）
+- 温かく親しみやすい口調
+- ユーザーのペースを尊重する
+- 書くことを強制せず、促すだけ
+- 完璧を求めない姿勢を示す
+- 必要に応じて記事コーチモード（/coach）への導線を提示
+- 検索結果を基に正確で最新の情報を提供
 
 【避けること】
-- 記事の紹介や検索
-- アドバイスや解決策の提示
-- 評価や判断
-- 表面的な同意（「よく分かります」など）
-
-【口調】
-- やさしく、温かい
-- 共感的で受容的
-- 簡潔で読みやすい
-- プレーンテキスト（装飾なし）
+- 「お母さん大学への記事投稿方法」の説明（これは研究目的ではない）
+- 「記事アップロード手順」の案内
+- 評価や分析的な言葉（「良い」「悪い」「もっと〜すべき」など）
+- 指導的なアドバイス
+- 複雑な技術的な説明
+- 長すぎる説明
+- 押し付けがましい案内
+- 検索結果にない情報の推測
 `.trim();
 
 function cleanForLine(raw: string): string {
@@ -210,15 +274,48 @@ export async function buildReferenceBlock(userMessage: string, picked: { title?:
  * @JSDoc
  * 【変更】メインのメッセージ処理関数。意図判別に応じて処理を振り分ける。
  */
-// 純粋な対話型AIハンドラー
-async function handleDialogueAI(
+// LIFFアプリQ&Aハンドラー
+async function handleLiffQA(
   userId: string,
   text: string
 ): Promise<string> {
   try {
-    console.log('[DIALOGUE] Processing dialogue request for user:', userId);
+    console.log('[LIFF_QA] Processing LIFF Q&A request for user:', userId);
   
   const participant = await findOrCreateParticipant(userId);
+
+  // 「記事」「サポート」「日記」「研究協力」などのキーワードの明示的な処理
+  const lowerText = text.toLowerCase();
+  const articleKeywords = ['記事', 'サポート', '日記', '研究協力', 'コーチ', '書く', '執筆'];
+  const hasArticleKeyword = articleKeywords.some(keyword => lowerText.includes(keyword));
+  
+  if (hasArticleKeyword) {
+    // 記事コーチモードへの導線を明確に
+    // 本番URLを取得（NEXT_PUBLIC_APP_URLを優先、なければVERCEL_URL、ただし本番環境のみ）
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || (
+      process.env.VERCEL_ENV === 'production' && process.env.VERCEL_URL
+        ? `https://${process.env.VERCEL_URL}`
+        : process.env.VERCEL_URL
+          ? `https://${process.env.VERCEL_URL}`
+          : 'http://localhost:3000'
+    );
+    const actionUrl = `${baseUrl}/action?user_id=${userId}`;
+    
+    // 現在の日付を取得して期間終了間近かどうかを判定
+    const today = new Date();
+    const endDate = new Date('2025-11-24');
+    const isNearEnd = today >= new Date('2025-11-20');
+    const daysRemaining = Math.ceil((endDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+    
+    const periodNote = isNearEnd && daysRemaining > 0
+      ? `研究期間：11/8–11/24（あと${daysRemaining}日）\n\n期間が延長されました。まだ日記を書いていない場合は、お時間のあるときにぜひお願いします。`
+      : `研究期間：11/8–11/24`;
+    
+    const surveyUrl = `${baseUrl}/survey/pen`;
+    const surveyNote = `\n\n日記を書いた後は、「ペンを持つ効果アンケート」にもご協力いただけると嬉しいです。体験後の率直な感想を教えてください。\n${surveyUrl}`;
+    
+    return `研究協力のための日記（記事）作成をサポートします！\n\n記事コーチモードでは、あなたのペースで安心して日記を書けるよう支援します。\n\n・テーマ選びからアウトライン、本文執筆までサポート\n・300-500字を目安に、無理なく書き上げられます\n・完璧を求めず、思いついたことから書けば大丈夫です\n\n${periodNote}\n\n日記は1回で大丈夫。ウォームアップ（任意）→対話→下書き→保存の流れで、途中保存もできます\nアウトライン後に「訂正したいところ」を伝えるボタンもあります\n\n以下のリンクからアクセスしてください：\n${actionUrl}${surveyNote}\n\n何か質問があれば、いつでも気軽に聞いてくださいね。`;
+  }
 
   // ユーザーメッセージをログに保存
   await supabaseAdmin.from('chat_logs').insert({
@@ -227,13 +324,13 @@ async function handleDialogueAI(
     content: text,
   });
 
-    // 会話履歴を取得
+    // 会話履歴を取得（最新5件に制限して、古い応答の影響を減らす）
     const { data: chatLogs } = await supabaseAdmin
       .from('chat_logs')
-    .select('*')
-    .eq('participant_id', participant.id)
-    .order('created_at', { ascending: false })
-      .limit(10);
+      .select('*')
+      .eq('participant_id', participant.id)
+      .order('created_at', { ascending: false })
+      .limit(5);
 
     const conversationHistory = (chatLogs || [])
       .reverse()
@@ -242,12 +339,18 @@ async function handleDialogueAI(
         content: log.content
       }));
 
-    // 対話型AIの応答を生成
+    // LIFFアプリQ&Aの応答を生成
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+    
+    // 「記事」が含まれている場合は、プロンプトに明示的な指示を追加
+    const enhancedSystemPrompt = lowerText.includes('記事') || lowerText.includes('日記')
+      ? LIFF_QA_SYSTEM + '\n\n【重要】ユーザーが「記事」について質問している場合、必ず研究協力の日記作成サポートに導いてください。お母さん大学への投稿方法は説明しません。'
+      : LIFF_QA_SYSTEM;
+    
     const completion = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
           messages: [
-        { role: 'system', content: DIALOGUE_AI_SYSTEM },
+        { role: 'system', content: enhancedSystemPrompt },
         ...conversationHistory,
             { role: 'user', content: text }
       ],
@@ -264,11 +367,11 @@ async function handleDialogueAI(
       content: response,
     });
 
-    console.log('[DIALOGUE] Dialogue response generated successfully');
+    console.log('[LIFF_QA] LIFF Q&A response generated successfully');
     return response;
   } catch (error) {
-    console.error('[DIALOGUE] Error in dialogue AI:', error);
-    return 'すみません、少し時間をおいてから再度お話しませんか？';
+    console.error('[LIFF_QA] Error in LIFF Q&A:', error);
+    return 'すみません、LIFFアプリの機能について詳しく説明できませんでした。もう一度お聞かせください。';
   }
 }
 
@@ -276,7 +379,7 @@ export async function handleTextMessage(userId: string, text: string): Promise<s
   // バージョンログ（本番確認用）
   console.log('[APP]', 'rev=', appRev());
   
-  // 純粋な対話型AIを使用
-  return await handleDialogueAI(userId, text);
+  // LIFFアプリQ&Aシステムを使用
+  return await handleLiffQA(userId, text);
 }
 
