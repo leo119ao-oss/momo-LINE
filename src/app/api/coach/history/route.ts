@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { findOrCreateParticipant } from '@/lib/participants';
 import OpenAI from 'openai';
 
 export const dynamic = 'force-dynamic';
@@ -9,11 +10,22 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
-    const participant_id = searchParams.get('participant_id');
+    const user_id = searchParams.get('user_id');
+    const participant_id = searchParams.get('participant_id'); // 後方互換性のため残す
 
-    if (!participant_id) {
+    // user_idからparticipant_idを取得（セキュリティのため）
+    let verifiedParticipantId: string;
+    
+    if (user_id) {
+      // user_idからparticipantを取得して検証
+      const participant = await findOrCreateParticipant(user_id);
+      verifiedParticipantId = participant.id;
+    } else if (participant_id) {
+      // 後方互換性のため、participant_idのみの場合も許可（非推奨）
+      verifiedParticipantId = participant_id;
+    } else {
       return NextResponse.json(
-        { error: 'participant_id is required' },
+        { error: 'user_id or participant_id is required' },
         { status: 400 }
       );
     }
@@ -21,7 +33,7 @@ export async function GET(req: NextRequest) {
     const { data: articles, error } = await supabaseAdmin
       .from('articles')
       .select('id, title, body, word_count, status, created_at, updated_at, submitted_at, pdf_url')
-      .eq('participant_id', participant_id)
+      .eq('participant_id', verifiedParticipantId)
       .order('created_at', { ascending: false })
       .limit(50);
 

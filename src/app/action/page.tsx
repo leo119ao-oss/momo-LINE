@@ -83,15 +83,15 @@ function ActionPageContent() {
   const latestAnswerRef = useRef<string>('');
   const conversationRef = useRef<HTMLDivElement | null>(null);
 
-  const refreshHistory = useCallback(async (targetParticipant?: string) => {
-    const pid = targetParticipant || participantId;
-    if (!pid) {
+  const refreshHistory = useCallback(async () => {
+    if (!userId) {
       return;
     }
 
     try {
       setHistoryLoading(true);
-      const res = await fetch(`/api/coach/history?participant_id=${encodeURIComponent(pid)}`);
+      // user_idで履歴を取得（セキュリティのため）
+      const res = await fetch(`/api/coach/history?user_id=${encodeURIComponent(userId)}`);
       const data = await res.json();
       if (res.ok && data.ok) {
         setHistory(data.articles || []);
@@ -101,7 +101,7 @@ function ActionPageContent() {
     } finally {
       setHistoryLoading(false);
     }
-  }, [participantId]);
+  }, [userId]);
 
   const _tasks = useMemo(() => (
     [
@@ -208,7 +208,7 @@ function ActionPageContent() {
         setStatus(statusData.status === 'submitted' ? 'submitted' : 'draft');
         setSubmittedAt(statusData.submitted_at || null);
 
-        refreshHistory(statusData.participant_id || startData.participant_id || null);
+        refreshHistory();
       } catch (err) {
         console.error('[ACTION] Bootstrap error:', err);
         if (!aborted) {
