@@ -246,11 +246,11 @@ function ActionPageContent() {
   const canEdit = Boolean(userId && articleId && !loading && conversationReady);
 
   const moodPresets = [
-    { value: '縺・ｌ縺励＞', label: '縺・ｌ縺励＞迸ｬ髢薙′縺ゅ▲縺・ },
-    { value: '縺｡繧・▲縺ｨ逍ｲ繧後◆', label: '縺｡繧・▲縺ｨ逍ｲ繧後◆' },
-    { value: '繝｢繝､繝｢繝､', label: '繧ｹ繝・く繝ｪ縺帙★繝｢繝､繝｢繝､' },
-    { value: '縺ｻ縺｣縺ｨ縺励◆', label: '縺ｻ縺｣縺ｨ荳諱ｯ縺､縺代◆' },
-    { value: '迚ｹ縺ｫ縺ｪ縺・, label: '迚ｹ縺ｫ縺ｪ縺・￠繧後・譖ｸ縺・※縺ｿ縺溘＞' },
+    { value: 'いい感じ', label: 'いい感じ！気分が良い' },
+    { value: 'まあまあ', label: 'まあまあ' },
+    { value: 'ドキドキ', label: 'ちょっとドキドキ' },
+    { value: 'しんどい◆', label: '縺ｻ縺｣縺ｨ荳諱ｯ縺､縺代◆' },
+    { value: 'わからない', label: 'わからない。まだ整理できていない' },
   ];
 
   function handleWarmupSubmit() {
