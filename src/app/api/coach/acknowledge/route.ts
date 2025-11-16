@@ -38,7 +38,7 @@ export async function POST(req: NextRequest) {
 この回答に対して、共感と励ましの言葉を短く（50文字程度）返してください。`;
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-5.1-mini',
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userPrompt },

@@ -57,7 +57,7 @@ ${conversationText}
 300-500字で書けるような構成を提案してください。完璧を求めず、思いついたことから書けるよう促す構成にしてください。`;
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-5.1-mini',
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         { role: 'user', content: userPrompt },

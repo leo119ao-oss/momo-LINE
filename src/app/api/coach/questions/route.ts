@@ -92,7 +92,7 @@ export async function POST(req: NextRequest) {
       console.error('[COACH_QUESTIONS] Model error:', {
         message: error.message,
         code: error.code,
-        model: 'gpt-5.1-mini',
+        model: 'gpt-4o-mini',
         suggestion: 'モデル名が正しいか、APIキーにアクセス権限があるか確認してください',
       });
     }
@@ -102,7 +102,7 @@ export async function POST(req: NextRequest) {
       { 
         error: '質問の生成に失敗しました',
         details: error?.message || 'Unknown error',
-        model: 'gpt-5.1-mini',
+        model: 'gpt-4o-mini',
       },
       { status: 500 }
     );
