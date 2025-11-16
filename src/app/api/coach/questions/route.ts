@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
       : `これまでの対話を踏まえて、次の質問を1つ生成してください。ユーザーの回答を深掘りするような質問を生成してください。`;
 
     const completion = await openai.chat.completions.create({
-      model: 'gpt-5.1-mini',
+      model: 'gpt-4o-mini',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
         ...conversationHistory,
