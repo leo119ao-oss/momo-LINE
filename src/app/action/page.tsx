@@ -76,7 +76,7 @@ function ActionPageContent() {
   const [_history, setHistory] = useState<HistoryArticle[]>([]);
   const [_historyLoading, setHistoryLoading] = useState<boolean>(false);
   const [_previewArticle, _setPreviewArticle] = useState<HistoryArticle | null>(null);
-  const [_pauseAfterOutline, setPauseAfterOutline] = useState<boolean>(false);
+  const [pauseAfterOutline, setPauseAfterOutline] = useState<boolean>(false);
   const [_manualProgress, _setManualProgress] = useState<boolean>(false);
   const [showCorrectionReminder, setShowCorrectionReminder] = useState<boolean>(true);
   const [correctionMode, setCorrectionMode] = useState<boolean>(false);
