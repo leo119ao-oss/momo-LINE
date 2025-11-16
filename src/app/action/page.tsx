@@ -280,14 +280,14 @@ function ActionPageContent() {
 
       if (res.ok && data.ok) {
         const latestAnswer = latestAnswerRef.current;
-        const nextQuestion = data.question ?? '莉頑律荳逡ｪ蜊ｰ雎｡縺ｫ谿九▲縺溘％縺ｨ縺ｯ菴輔〒縺吶°・・;
+        const nextQuestion = data.question ?? '質問を生成できませんでした。';
 
         let prompt = nextQuestion;
         if (showCorrectionReminder) {
-          prompt = `繧ゅ＠蜿励￠蜿悶ｊ譁ｹ縺碁＆縺｣縺溘ｉ驕諷ｮ縺ｪ縺乗蕗縺医※縺ｭ縲・n${nextQuestion}`;
+          prompt = `もしよければ、前の回答を修正してから次の質問に進んでください。\n${nextQuestion}`;
           setShowCorrectionReminder(false);
         } else if (latestAnswer) {
-          prompt = `縺輔▲縺阪・縲・{latestAnswer.length > 32 ? `${latestAnswer.slice(0, 32)}窶ｦ` : latestAnswer}縲阪↓縺､縺・※縲√ｂ縺・ｰ代＠縺縺台ｼｺ縺｣縺ｦ繧ゅ＞縺・°縺ｪ・歃n${nextQuestion}`;
+          prompt = `前の回答「${latestAnswer.length > 32 ? `${latestAnswer.slice(0, 32)}...` : latestAnswer}」について、もう少し詳しく教えてください。\n${nextQuestion}`;
         }
 
         setCurrentQuestion(prompt);
@@ -295,11 +295,11 @@ function ActionPageContent() {
           setThemeSuggestion(data.suggestedTheme);
         }
       } else {
-        setCurrentQuestion('莉頑律荳逡ｪ蜊ｰ雎｡縺ｫ谿九▲縺溘％縺ｨ縺ｯ菴輔〒縺吶°・・);
+        setCurrentQuestion('質問を生成できませんでした。');
       }
     } catch (err) {
       console.error('[ACTION] Failed to fetch question:', err);
-      setCurrentQuestion('莉頑律荳逡ｪ蜊ｰ雎｡縺ｫ谿九▲縺溘％縺ｨ縺ｯ菴輔〒縺吶°・・);
+      setCurrentQuestion('質問を生成できませんでした。');
     } finally {
       setQuestionLoading(false);
     }
@@ -314,9 +314,9 @@ function ActionPageContent() {
     setCurrentAnswer('');
     setCurrentQuestion('');
     latestAnswerRef.current = trimmed;
-    setMessage('momo: 莨昴∴縺ｦ縺上ｌ縺ｦ縺ゅｊ縺後→縺・ょｰ代＠閠・∴縺ｦ縺九ｉ谺｡縺ｮ縺願ｩｱ繧偵☆繧九・縲・);
+    setMessage('momo: 回答を受け取りました。次の質問を考えています...');
 
-    let ackText = 'momo: 謨吶∴縺ｦ縺上ｌ縺ｦ縺ゅｊ縺後→縺・よｰ玲戟縺｡縺後ｈ縺丈ｼ昴ｏ縺｣縺溘ｈ縲・;
+    let ackText = 'momo: ありがとうございます。';
 
     try {
       const ackRes = await fetch('/api/coach/acknowledge', {
@@ -426,7 +426,7 @@ function ActionPageContent() {
           setLeadSuggestion(leadData.suggestion as string);
         }
       }
-      setMessage('momo: 繧｢繧ｦ繝医Λ繧､繝ｳ繧呈署譯医＠縺溘ｈ縲ゅ＠縺｣縺上ｊ縺上ｋ繧ゅ・縺後≠繧後・縲√・繧ｿ繝ｳ縺九ｉ譛ｬ譁・↓蜿悶ｊ霎ｼ繧薙〒縺ｿ縺ｦ縲よｰ励↓縺ｪ繧九→縺薙ｍ縺ｯ驕諷ｮ縺ｪ縺剰ｨよｭ｣縺励※縺ｭ縲・);
+      setMessage('momo: アウトラインを作成しました。これを使って本文を書いてみてください。もし修正したい点があれば、対話を続けることもできます。');
     } catch (err) {
       console.error('[ACTION] Outline generation error:', err);
       setMessage(getErrorMessage(err, '繧｢繧ｦ繝医Λ繧､繝ｳ縺ｮ逕滓・縺ｫ螟ｱ謨励＠縺ｾ縺励◆'));
@@ -446,11 +446,11 @@ function ActionPageContent() {
     const outlineText = outline.points.map((point, idx) => `${idx + 1}. ${point}`).join('\n');
     if (!body.trim()) {
       const intro = leadSuggestion ? `${leadSuggestion}\n\n` : '';
-      setBody(`${intro}${outlineText}\n\n縺薙％縺九ｉ譛ｬ譁・ｒ譖ｸ縺・※縺ｿ縺ｾ縺励ｇ縺・Ａ);
+      setBody(`${intro}${outlineText}\n\nここから本文を書いてみてください。`);
     } else {
       setBody((prev) => `${prev}\n\n${outlineText}`);
     }
-    setMessage('momo: 繧｢繧ｦ繝医Λ繧､繝ｳ繧貞ｷｮ縺苓ｾｼ繧薙□繧医り・蛻・・險闡峨〒蟆代＠縺壹▽閹ｨ繧峨∪縺帙※縺・％縺・・縲・);
+    setMessage('momo: アウトラインを適用しました。本文を書いてみてください。');
   }
 
   function handleContinueDialogue() {
