@@ -78,7 +78,7 @@ function ActionPageContent() {
   const [_previewArticle, _setPreviewArticle] = useState<HistoryArticle | null>(null);
   const [pauseAfterOutline, setPauseAfterOutline] = useState<boolean>(false);
   const [_manualProgress, _setManualProgress] = useState<boolean>(false);
-  const [showCorrectionReminder, setShowCorrectionReminder] = useState<boolean>(true);
+  const [_showCorrectionReminder, setShowCorrectionReminder] = useState<boolean>(false);
   const [correctionMode, setCorrectionMode] = useState<boolean>(false);
   const latestAnswerRef = useRef<string>('');
   const conversationRef = useRef<HTMLDivElement | null>(null);
@@ -274,23 +274,16 @@ function ActionPageContent() {
         body: JSON.stringify({
           previousAnswers: previous,
           currentStep: previous.length,
+          warmupMood: previous.length === 0 ? _warmupMood : undefined,
+          warmupNote: previous.length === 0 ? _warmupNote : undefined,
         }),
       });
       const data = await res.json();
 
       if (res.ok && data.ok) {
-        const latestAnswer = latestAnswerRef.current;
         const nextQuestion = data.question ?? '質問を生成できませんでした。';
 
-        let prompt = nextQuestion;
-        if (showCorrectionReminder) {
-          prompt = `もしよければ、前の回答を修正してから次の質問に進んでください。\n${nextQuestion}`;
-          setShowCorrectionReminder(false);
-        } else if (latestAnswer) {
-          prompt = `前の回答「${latestAnswer.length > 32 ? `${latestAnswer.slice(0, 32)}...` : latestAnswer}」について、もう少し詳しく教えてください。\n${nextQuestion}`;
-        }
-
-        setCurrentQuestion(prompt);
+        setCurrentQuestion(nextQuestion);
         if (data.suggestedTheme) {
           setThemeSuggestion(data.suggestedTheme);
         }

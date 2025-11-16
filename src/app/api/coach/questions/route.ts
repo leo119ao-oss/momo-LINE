@@ -122,6 +122,8 @@ const questionsSchema = z.object({
     answer: z.string(),
   })),
   currentStep: z.number().int().min(0),
+  warmupMood: z.string().optional(),
+  warmupNote: z.string().optional(),
 });
 
 const SYSTEM_PROMPT = `あなたは「momo」という、ユーザーの体験を丁寧に引き出す対話パートナーです。
@@ -166,13 +168,28 @@ const SYSTEM_PROMPT = `あなたは「momo」という、ユーザーの体験�
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { previousAnswers } = questionsSchema.parse(body);
+    const { previousAnswers, warmupMood, warmupNote } = questionsSchema.parse(body);
 
     // 対話履歴を構築
     const conversationHistory = previousAnswers.map((qa) => ({
       role: 'user' as const,
       content: `Q: ${qa.question}\nA: ${qa.answer}`,
     }));
+
+    // ウォームアップ情報を最初の質問生成時に含める
+    if (previousAnswers.length === 0 && (warmupMood || warmupNote)) {
+      const warmupContext = [];
+      if (warmupMood) {
+        warmupContext.push(`気分: ${warmupMood}`);
+      }
+      if (warmupNote) {
+        warmupContext.push(`メモ: ${warmupNote}`);
+      }
+      conversationHistory.push({
+        role: 'user' as const,
+        content: `ウォームアップ情報:\n${warmupContext.join('\n')}`,
+      });
+    }
 
     // 最新の回答からテーマを抽出（簡易版）
     let suggestedTheme: string | null = null;
@@ -184,7 +201,9 @@ export async function POST(req: NextRequest) {
 
     // 質問を生成
     const userPrompt = previousAnswers.length === 0
-      ? '最初の質問を生成してください。「今日はどんなことがあったんでしょう？『これを書き残したいな』と思うようなことがあれば、少し教えてください。」というような、素材収集の質問を1つ生成してください。'
+      ? warmupMood || warmupNote
+        ? `ウォームアップ情報を踏まえて、最初の質問を生成してください。ユーザーの気分やメモを参考に、「今日はどんなことがあったんでしょう？『これを書き残したいな』と思うようなことがあれば、少し教えてください。」というような、素材収集の質問を1つ生成してください。`
+        : '最初の質問を生成してください。「今日はどんなことがあったんでしょう？『これを書き残したいな』と思うようなことがあれば、少し教えてください。」というような、素材収集の質問を1つ生成してください。'
       : `これまでの対話を踏まえて、次の質問を1つ生成してください。深掘り構造（出来事→シーン→感情→背景→気づき）に沿って、適切な段階の質問を生成してください。`;
 
     const completion = await openai.chat.completions.create({
