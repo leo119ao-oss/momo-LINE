@@ -336,11 +336,11 @@ function ActionPageContent() {
     }
 
     const personalizedAck = (() => {
-      if (ackText !== 'momo: 謨吶∴縺ｦ縺上ｌ縺ｦ縺ゅｊ縺後→縺・よｰ玲戟縺｡縺後ｈ縺丈ｼ昴ｏ縺｣縺溘ｈ.') {
+      if (ackText !== 'momo: ありがとうございます。') {
         return ackText;
       }
       const snippet = trimmed.length > 36 ? `${trimmed.slice(0, 36)}窶ｦ` : trimmed;
-      return `momo: 縲・{snippet}縲阪▲縺ｦ諢溘§縺溘ｓ縺縺ｭ縲よ蕗縺医※縺上ｌ縺ｦ縺ゅｊ縺後→縺・Ａ;
+      return `momo: 「${snippet}」について、もう少し詳しく教えてください。`;
     })();
 
     const acknowledgedTurns = draftTurns.map((turn, index) => (
@@ -353,7 +353,7 @@ function ActionPageContent() {
       setShowOutlinePrompt(true);
       setPauseAfterOutline(true);
       setShowCorrectionReminder(true);
-      setMessage('momo: 縺薙％縺ｾ縺ｧ縺ｧ螟ｧ莠九↑縺願ｩｱ縺後◆縺上＆繧灘・縺ｦ縺阪◆繧医りｨ倅ｺ九・蠖｢縺ｫ縺励※縺ｿ繧具ｼ滓ｰ励↓縺ｪ繧九→縺薙ｍ縺後≠繧後・縺薙・縺ゅ→荳邱偵↓逶ｴ縺昴≧縲・);
+      setMessage('momo: 3つの質問に答えていただき、ありがとうございました。対話の内容から、記事の構成案を作ることができます。');
     } else {
       if (correctionMode) {
         setCorrectionMode(false);
@@ -429,7 +429,7 @@ function ActionPageContent() {
       setMessage('momo: アウトラインを作成しました。これを使って本文を書いてみてください。もし修正したい点があれば、対話を続けることもできます。');
     } catch (err) {
       console.error('[ACTION] Outline generation error:', err);
-      setMessage(getErrorMessage(err, '繧｢繧ｦ繝医Λ繧､繝ｳ縺ｮ逕滓・縺ｫ螟ｱ謨励＠縺ｾ縺励◆'));
+      setMessage(getErrorMessage(err, 'アウトラインの生成に失敗しました'));
     } finally {
       setIsGeneratingOutline(false);
       setShowOutlinePrompt(false);
@@ -457,8 +457,8 @@ function ActionPageContent() {
     setPauseAfterOutline(false);
     setCorrectionMode(true);
     setShowCorrectionReminder(false);
-    setCurrentQuestion('險よｭ｣縺励◆縺・ｓ縺縺ｭ縲√≠繧翫′縺ｨ縺・ゅ←縺ｮ驛ｨ蛻・′驕輔▲縺ｦ縺・◆縺九↑・・);
-    setMessage('momo: 謨吶∴縺ｦ縺上ｌ縺ｦ蜉ｩ縺九ｋ繧医る＆縺｣縺ｦ縺・◆縺ｨ縺薙ｍ繧偵◎縺ｮ縺ｾ縺ｾ謨吶∴縺ｦ縺ｭ縲・);
+    setCurrentQuestion('修正したい点があれば、対話を続けることもできます。');
+    setMessage('momo: ありがとうございます。対話を続けましょう。');
     requestAnimationFrame(() => {
       conversationRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
     });
@@ -466,16 +466,16 @@ function ActionPageContent() {
 
   async function handleGeneratePdf(targetArticle: HistoryArticle) {
     if (!userId) {
-      setMessage('momo: PDF繧剃ｽ懊ｋ縺ｫ縺ｯLINE縺ｧ繝ｭ繧ｰ繧､繝ｳ縺励◆迥ｶ諷九〒繧｢繧ｯ繧ｻ繧ｹ縺励※縺ｭ縲・);
+      setMessage('momo: PDFを生成するにはLINEからアクセスしてください。');
       return;
     }
 
     if (!targetArticle.body) {
-      setMessage('momo: 縺薙・險倅ｺ九・縺ｾ縺譛ｬ譁・′菫晏ｭ倥＆繧後※縺・↑縺・∩縺溘＞縲・);
+      setMessage('momo: この記事には本文がありません。');
       return;
     }
 
-    setMessage('momo: PDF繧呈ｺ門ｙ縺吶ｋ縺九ｉ蟆代＠蠕・▲縺ｦ縺ｭ縲・);
+    setMessage('momo: PDFを生成しています...');
 
     try {
       const res = await fetch('/api/coach/pdf', {
@@ -484,21 +484,21 @@ function ActionPageContent() {
         body: JSON.stringify({
           user_id: userId,
           article_id: targetArticle.id,
-          title: targetArticle.title || '譌･險・,
+          title: targetArticle.title || '無題',
           content: targetArticle.body,
         }),
       });
 
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        throw new Error(data?.error || 'PDF縺ｮ逕滓・縺ｫ螟ｱ謨励＠縺ｾ縺励◆');
+        throw new Error(data?.error || 'PDFの生成に失敗しました');
       }
 
-      setMessage('momo: PDF縺後〒縺阪◆繧医ゅム繧ｦ繝ｳ繝ｭ繝ｼ繝峨・繧ｿ繝ｳ縺九ｉ隕九※縺ｿ縺ｦ縺ｭ縲・);
+      setMessage('momo: PDFを作成しました。マイページで確認できます。');
       await refreshHistory();
     } catch (err) {
       console.error('[ACTION] PDF generation error:', err);
-      setMessage(getErrorMessage(err, 'PDF縺ｮ逕滓・縺ｫ螟ｱ謨励＠縺ｾ縺励◆'));
+      setMessage(getErrorMessage(err, 'PDFの生成に失敗しました'));
     }
   }
 
@@ -530,24 +530,24 @@ function ActionPageContent() {
       });
 
       if (!res.ok) {
-        throw new Error('菫晏ｭ倥↓螟ｱ謨励＠縺ｾ縺励◆');
+        throw new Error('保存に失敗しました');
       }
 
       if (markSubmitted) {
         setSaveStatus('submitted');
         setStatus('submitted');
         setSubmittedAt(new Date().toISOString());
-        setMessage('momo: 縺翫▽縺九ｌ縺輔∪縲ゅ・繧､繝壹・繧ｸ縺ｫ菫晏ｭ倥〒縺阪∪縺励◆・√い繝ｳ繧ｱ繝ｼ繝医〒豌励▼縺阪ｒ蜈ｱ譛峨＠縺ｦ縺上ｌ繧九→縲√→縺｣縺ｦ繧ょｬ峨＠縺・〒縺吶・);
+        setMessage('momo: 記事を保存しました。アンケートに回答していただけると嬉しいです。');
       } else {
         setSaveStatus('saved');
-        setMessage('momo: 騾比ｸｭ菫晏ｭ倥・縺｣縺｡繧翫ゅ・縺ｨ諱ｯ縺､縺阪↑縺後ｉ縲∵昴＞縺､縺・◆繧峨∪縺溘Γ繝｢縺励※縺ｭ縲・);
+        setMessage('momo: 下書きを保存しました。いつでも編集できます。');
       }
 
       await refreshHistory();
     } catch (err) {
       console.error('[ACTION] Save error:', err);
       setSaveStatus('error');
-      setMessage(getErrorMessage(err, '菫晏ｭ倥↓螟ｱ謨励＠縺ｾ縺励◆'));
+      setMessage(getErrorMessage(err, '保存に失敗しました'));
     }
   }
 
@@ -556,7 +556,7 @@ function ActionPageContent() {
       <div className="action-wrapper">
         <div className="action-card loading">
           <div className="spinner" />
-          <p>momo縺梧ｺ門ｙ荳ｭ縺ｧ縺吮ｦ縲・/p>
+          <p>momoを読み込んでいます...</p>
         </div>
       </div>
     );
@@ -566,9 +566,9 @@ function ActionPageContent() {
     return (
       <div className="action-wrapper">
         <div className="action-card error">
-          <h1>險倅ｺ倶ｽ懈・縺ｫ繧｢繧ｯ繧ｻ繧ｹ縺ｧ縺阪∪縺帙ｓ</h1>
+          <h1>エラーが発生しました</h1>
           <p>{error}</p>
-          <p className="action-hint">LINE Bot縲後Δ繝｢縲阪↓縲瑚ｨ倅ｺ九ｒ譖ｸ縺阪◆縺・阪→騾∽ｿ｡縺励∬｡ｨ遉ｺ縺輔ｌ縺溘Μ繝ｳ繧ｯ縺九ｉ繧｢繧ｯ繧ｻ繧ｹ縺励※縺上□縺輔＞縲・/p>
+          <p className="action-hint">LINE Botから再度アクセスしてください。</p>
         </div>
       </div>
     );
