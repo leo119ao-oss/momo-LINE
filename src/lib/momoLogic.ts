@@ -3,7 +3,6 @@ import { supabaseAdmin } from './supabaseAdmin';
 import OpenAI from 'openai';
 import { findOrCreateParticipant } from './participants';
 import { appRev } from './log';
-import { momoArticleSupportGuidelines } from './knowledge/research';
 
 
 // LIFFアプリQ&Aシステムのプロンプト
