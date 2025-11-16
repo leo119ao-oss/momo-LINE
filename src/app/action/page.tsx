@@ -259,7 +259,7 @@ function ActionPageContent() {
       return;
     }
     setWarmupComplete(true);
-    setMessage(momo: ${warmupMood}を選んでくれてありがとう。それでは、momoとの対話を始めましょう。);
+    setMessage(`momo: ${warmupMood}を選んでくれてありがとう。それでは、momoとの対話を始めましょう。`);
   }
 
   async function fetchNextQuestion(previous: QATurn[], options?: { force?: boolean }) {
