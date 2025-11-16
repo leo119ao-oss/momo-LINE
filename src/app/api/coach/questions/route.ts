@@ -87,9 +87,23 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // モデル名エラーの詳細をログに出力
+    if (error?.message?.includes('model') || error?.code === 'model_not_found') {
+      console.error('[COACH_QUESTIONS] Model error:', {
+        message: error.message,
+        code: error.code,
+        model: 'gpt-5.1-mini',
+        suggestion: 'モデル名が正しいか、APIキーにアクセス権限があるか確認してください',
+      });
+    }
+
     console.error('[COACH_QUESTIONS] Error:', error);
     return NextResponse.json(
-      { error: '質問の生成に失敗しました' },
+      { 
+        error: '質問の生成に失敗しました',
+        details: error?.message || 'Unknown error',
+        model: 'gpt-5.1-mini',
+      },
       { status: 500 }
     );
   }
