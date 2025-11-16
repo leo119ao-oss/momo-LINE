@@ -137,12 +137,12 @@ function ActionPageContent() {
         }
 
         if (active) {
-          setError('繝ｦ繝ｼ繧ｶ繝ｼ諠・ｱ縺悟叙蠕励〒縺阪∪縺帙ｓ縺ｧ縺励◆縲・INE Bot 縺九ｉ繝ｪ繝ｳ繧ｯ繧帝幕縺・※縺上□縺輔＞縲・);
+          setError('ユーザー情報を取得できませんでした。LINE Bot から再度アクセスしてください。');
         }
       } catch (err) {
         console.error('[ACTION] Failed to resolve user:', err);
         if (active) {
-          setError(getErrorMessage(err, '繝ｦ繝ｼ繧ｶ繝ｼ諠・ｱ縺ｮ蜿門ｾ嶺ｸｭ縺ｫ繧ｨ繝ｩ繝ｼ縺檎匱逕溘＠縺ｾ縺励◆縲・));
+          setError(getErrorMessage(err, 'ユーザー情報の取得に失敗しました。'));
         }
       } finally {
         if (active) {
@@ -179,7 +179,7 @@ function ActionPageContent() {
 
         const startData = await startRes.json();
         if (!startRes.ok || !startData.ok) {
-          throw new Error(startData?.error || '蜿ょ刈閠・ュ蝣ｱ縺ｮ蜿門ｾ励↓螟ｱ謨励＠縺ｾ縺励◆');
+          throw new Error(startData?.error || '記事コーチの初期化に失敗しました');
         }
 
         if (aborted) return;
@@ -193,7 +193,7 @@ function ActionPageContent() {
         const statusData = await statusRes.json();
 
         if (!statusRes.ok || !statusData.ok) {
-          throw new Error(statusData?.error || '險倅ｺ九・蜿門ｾ励↓螟ｱ謨励＠縺ｾ縺励◆');
+          throw new Error(statusData?.error || 'コーチ状態の取得に失敗しました');
         }
 
         if (aborted) return;
@@ -212,7 +212,7 @@ function ActionPageContent() {
       } catch (err) {
         console.error('[ACTION] Bootstrap error:', err);
         if (!aborted) {
-          setError(getErrorMessage(err, '蛻晄悄繝・・繧ｿ縺ｮ蜿門ｾ励↓螟ｱ謨励＠縺ｾ縺励◆'));
+          setError(getErrorMessage(err, 'ページの初期化に失敗しました'));
         }
       } finally {
         if (!aborted) {
@@ -226,7 +226,8 @@ function ActionPageContent() {
     };
   }, [userId, initializingUser, refreshHistory]);
 
-  // 蛻晏屓縺ｮ蟇ｾ隧ｱ繧帝幕蟋・  useEffect(() => {
+  // 初回の対話を開始
+  useEffect(() => {
     if (!warmupComplete || loading || initializingUser || !userId) {
       return;
     }
@@ -370,7 +371,7 @@ function ActionPageContent() {
 
   async function handleOutlinePromptAccept() {
     if (!participantId) {
-      setMessage('蜿ょ刈閠・ュ蝣ｱ繧貞叙蠕励〒縺阪∪縺帙ｓ縺ｧ縺励◆縲ゅ・繝ｼ繧ｸ繧貞・隱ｭ縺ｿ霎ｼ縺ｿ縺励※縺上□縺輔＞縲・);
+      setMessage('ユーザー情報を取得できませんでした。ページを再読み込みしてください。');
       setShowOutlinePrompt(false);
       return;
     }
@@ -391,7 +392,7 @@ function ActionPageContent() {
 
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        throw new Error(data?.error || '繧｢繧ｦ繝医Λ繧､繝ｳ縺ｮ逕滓・縺ｫ螟ｱ謨励＠縺ｾ縺励◆');
+        throw new Error(data?.error || 'アウトラインの生成に失敗しました');
       }
 
       const outlines = (data.outlines || []) as OutlineSuggestion[];
@@ -406,7 +407,7 @@ function ActionPageContent() {
           setTitle(primary.title);
         }
 
-        // 蟆主・譁・ｒ逕滓・
+        // リード文を生成
         const leadRes = await fetch('/api/coach/generate', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -415,7 +416,7 @@ function ActionPageContent() {
             context: {
               theme: themeSuggestion || primary.title,
               outline: primary.points,
-              tone: '繧・＆縺励＞',
+              tone: '優しい',
             },
           }),
         });
@@ -503,12 +504,12 @@ function ActionPageContent() {
 
   async function handleSave(markSubmitted = false) {
     if (!articleId) {
-      setMessage('險倅ｺ区ュ蝣ｱ縺ｮ蜿門ｾ励↓螟ｱ謨励＠縺ｾ縺励◆縲ゅ・繝ｼ繧ｸ繧貞・隱ｭ縺ｿ霎ｼ縺ｿ縺励※縺上□縺輔＞縲・);
+      setMessage('記事情報の取得に失敗しました。ページを再読み込みしてください。');
       return;
     }
 
     if (!body.trim()) {
-      setMessage('譛ｬ譁・ｒ蜈･蜉帙＠縺ｦ縺上□縺輔＞縲・);
+      setMessage('本文を入力してください。');
       return;
     }
 
@@ -745,8 +746,8 @@ function ActionPageContent() {
 
           {outlineSuggestions.length > 0 && (
             <div className="action-card outline-card">
-              <h2>謠先｡医＆繧後◆繧｢繧ｦ繝医Λ繧､繝ｳ</h2>
-              <p>momo縺悟ｯｾ隧ｱ蜀・ｮｹ繧偵ｂ縺ｨ縺ｫ險倅ｺ九・豬√ｌ繧堤畑諢上＠縺ｾ縺励◆縲ゅ＠縺｣縺上ｊ縺上ｋ譯医ｒ驕ｸ繧薙〒譛ｬ譁・ｽ懈・縺ｮ縺阪▲縺九￠縺ｫ縺励※縺上□縺輔＞縲・/p>
+              <h2>生成されたアウトライン</h2>
+              <p>momoが対話の内容から、記事の構成案を作りました。これを使って本文を書いてみてください。</p>
               <div className="outline-list">
                 {outlineSuggestions.map((outline, index) => (
                   <div key={`${outline.title}-${index}`} className="outline-item">
@@ -762,7 +763,8 @@ function ActionPageContent() {
                       onClick={() => applyOutline(outline)}
                       disabled={status === 'submitted'}
                     >
-                      縺薙・繧｢繧ｦ繝医Λ繧､繝ｳ繧剃ｽｿ縺・                    </button>
+                      このアウトラインを使う
+                    </button>
                   </div>
                 ))}
               </div>
