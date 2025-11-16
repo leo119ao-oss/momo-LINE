@@ -500,6 +500,38 @@ function ActionPageContent() {
     }
   }
 
+  async function loadArticleForEdit(article: HistoryArticle) {
+    if (!userId || !article.id) return;
+
+    try {
+      // 記事の詳細を取得
+      const res = await fetch(`/api/coach/history?user_id=${encodeURIComponent(userId)}`);
+      const data = await res.json();
+      
+      if (res.ok && data.ok) {
+        const targetArticle = data.articles?.find((a: HistoryArticle) => a.id === article.id);
+        if (targetArticle) {
+          // 記事を編集画面に読み込む
+          setArticleId(targetArticle.id);
+          setTitle(targetArticle.title || '');
+          setBody(targetArticle.body || '');
+          setStatus(targetArticle.status === 'submitted' ? 'submitted' : 'draft');
+          setSubmittedAt(targetArticle.submitted_at || null);
+          setSaveStatus('idle');
+          setMessage('momo: 記事を読み込みました。編集できます。');
+          
+          // ページの上部にスクロール
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+        } else {
+          setMessage('momo: 記事が見つかりませんでした。');
+        }
+      }
+    } catch (err) {
+      console.error('[ACTION] Failed to load article:', err);
+      setMessage('momo: 記事の読み込みに失敗しました。');
+    }
+  }
+
   async function createNewArticle() {
     if (!userId) return;
 
@@ -969,6 +1001,13 @@ function ActionPageContent() {
                       )}
                     </div>
                     <div className="history-actions">
+                      <button
+                        type="button"
+                        className="secondary"
+                        onClick={() => loadArticleForEdit(article)}
+                      >
+                        編集する
+                      </button>
                       <button
                         type="button"
                         className="secondary"
