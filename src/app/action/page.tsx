@@ -1006,7 +1006,7 @@ function ActionPageContent() {
                         className="secondary"
                         onClick={() => loadArticleForEdit(article)}
                       >
-                        編集する
+                        この記事を編集する
                       </button>
                       <button
                         type="button"
