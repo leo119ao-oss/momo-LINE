@@ -500,6 +500,42 @@ function ActionPageContent() {
     }
   }
 
+  async function createNewArticle() {
+    if (!userId) return;
+
+    try {
+      const startRes = await fetch('/api/coach/start', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          user_id: userId,
+          form_version: 'pen-effect-web',
+        }),
+      });
+
+      const startData = await startRes.json();
+      if (startRes.ok && startData.ok) {
+        // 新しい記事の状態にリセット
+        setArticleId(startData.article_id || null);
+        setParticipantId(startData.participant_id || null);
+        setTitle('');
+        setBody('');
+        setStatus('draft');
+        setSubmittedAt(null);
+        setQaTurns([]);
+        setCurrentQuestion('');
+        setCurrentAnswer('');
+        setWarmupComplete(false);
+        _setWarmupMood('');
+        _setWarmupNote('');
+        setSaveStatus('idle');
+        setMessage('momo: 新しい記事を作成しました。momoとの対話を始めましょう。');
+      }
+    } catch (err) {
+      console.error('[ACTION] Failed to create new article:', err);
+    }
+  }
+
   async function _handleSave(markSubmitted = false) {
     if (!articleId) {
       setMessage('記事情報の取得に失敗しました。ページを再読み込みしてください。');
@@ -536,6 +572,8 @@ function ActionPageContent() {
         setStatus('submitted');
         setSubmittedAt(new Date().toISOString());
         setMessage('momo: 記事を保存しました。アンケートに回答していただけると嬉しいです。');
+        // 新しい記事を作成するために状態をリセット
+        await createNewArticle();
       } else {
         setSaveStatus('saved');
         setMessage('momo: 下書きを保存しました。いつでも編集できます。');

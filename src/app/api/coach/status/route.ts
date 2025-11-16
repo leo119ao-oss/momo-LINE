@@ -22,11 +22,12 @@ export async function GET(req: NextRequest) {
     // 参加者を取得または作成
     const participant = await findOrCreateParticipant(user_id);
 
-    // 最新の記事を取得
+    // 最新の下書き記事を取得（submittedの記事は除外）
     const { data: article, error: articleError } = await supabaseAdmin
       .from('articles')
       .select('id, title, body, status, submitted_at, created_at, updated_at')
       .eq('participant_id', participant.id)
+      .eq('status', 'draft')
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle();
