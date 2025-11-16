@@ -587,7 +587,7 @@ function ActionPageContent() {
           target="_blank"
           rel="noreferrer noopener"
         >
-          繧｢繝ｳ繧ｱ繝ｼ繝医↓騾ｲ繧
+          アンケートに回答
         </a>
       </header>
 
@@ -600,7 +600,7 @@ function ActionPageContent() {
                 const prevIncomplete = !manualProgress && tasks.slice(0, index).some((t) => !t.done);
                 return (
                   <li key={task.key} className={`${task.done ? 'done' : ''} ${prevIncomplete ? 'locked' : ''}`}>
-                    <span className="task-check">{task.done ? '笨・ : prevIncomplete ? '窶・ : '笳・}</span>
+                    <span className="task-check">{task.done ? '✓' : prevIncomplete ? '🔒' : '○'}</span>
                     <span>{task.label}</span>
                   </li>
                 );
@@ -613,7 +613,7 @@ function ActionPageContent() {
                 onClick={() => setManualProgress(true)}
               >
                 順番を自由に進める
-            )}
+              </button>
           </div>
 
           <div className="action-card warmup-card">
@@ -736,8 +736,8 @@ function ActionPageContent() {
                     onClick={handleAnswerSubmit}
                     disabled={questionLoading || !currentAnswer.trim() || status === 'submitted' || !warmupComplete}
                   >
-                    <span className="send-icon" aria-hidden>岫</span>
-                    <span>騾∽ｿ｡</span>
+                    <span className="send-icon" aria-hidden>📤</span>
+                    <span>送信</span>
                   </button>
                 </div>
               </div>
@@ -783,7 +783,7 @@ function ActionPageContent() {
                 disabled={isGeneratingOutline}
               >
                 momoと対話を続ける
-            </div>
+              </button>
           )}
 
           {loading ? (
@@ -794,7 +794,7 @@ function ActionPageContent() {
           ) : (
             <>
               <div className="action-card">
-                <label className="field-label" htmlFor="article-title">繧ｿ繧､繝医Ν</label>
+                <label className="field-label" htmlFor="article-title">タイトル</label>
                 <input
                   id="article-title"
                   className="text-input"
@@ -829,7 +829,7 @@ function ActionPageContent() {
               </div>
 
               <div className="action-card memo-card">
-                <h2>繝｡繝｢繧ｹ繝壹・繧ｹ</h2>
+                <h2>メモ</h2>
                 <p>書いた内容をメモに残しておくと、後から見返すことができます。メモは記事には含まれません。</p>
                 <textarea
                   className="textarea"
@@ -857,12 +857,12 @@ function ActionPageContent() {
                   disabled={!canEdit || saveStatus === 'saving'}
                 >
                   マイページに保存する
-              </div>
+                </button>
 
               {status === 'submitted' && submittedAt && (
                 <div className="action-card success">
                   <h2>保存が完了しました</h2>
-                  <p>菫晏ｭ俶律譎・ {new Date(submittedAt).toLocaleString('ja-JP')}</p>
+                  <p>保存日時: {new Date(submittedAt).toLocaleString('ja-JP')}</p>
                   <p className="action-hint">アンケートに回答していただけると嬉しいです。</p>
                   <a
                     className="action-link"
@@ -870,8 +870,8 @@ function ActionPageContent() {
                     target="_blank"
                     rel="noreferrer noopener"
                   >
-                    繧｢繝ｳ繧ｱ繝ｼ繝医↓蝗樒ｭ斐☆繧・                  </a>
-                </div>
+                    アンケートに回答する
+                  </a>
               )}
             </>
           )}
@@ -888,7 +888,7 @@ function ActionPageContent() {
               rel="noreferrer noopener"
             >
               ペンを持つ効果 アンケート
-            <p className="action-hint">※ LINE のメニューから再度アクセスできます。</p>
+            </a>
           </div>
 
           <div className="action-card info">
@@ -924,7 +924,7 @@ function ActionPageContent() {
                         </div>
                       </div>
                       {article.word_count !== null && (
-                        <div className="history-count">{article.word_count}蟄・/div>
+                        <div className="history-count">{article.word_count}文字</div>
                       )}
                     </div>
                     <div className="history-actions">
@@ -933,7 +933,7 @@ function ActionPageContent() {
                         className="secondary"
                         onClick={() => setPreviewArticle(article)}
                       >
-                        譛ｬ譁・ｒ陦ｨ遉ｺ
+                        本文を確認
                       </button>
                       {article.pdf_url ? (
                         <a
@@ -949,7 +949,7 @@ function ActionPageContent() {
                           className="secondary"
                           onClick={() => handleGeneratePdf(article)}
                         >
-                          PDF繧剃ｽ懈・
+                          PDFを開く
                         </button>
                       )}
                     </div>
@@ -963,7 +963,7 @@ function ActionPageContent() {
               style={{ marginTop: '12px', width: '100%' }}
               onClick={() => window.open('/me', '_blank')}
             >
-              繝槭う繝壹・繧ｸ・磯℃蜴ｻ險倅ｺ具ｼ峨ｒ髢九￥
+              マイページに保存した記事を確認する
             </button>
           </div>
         </aside>
@@ -982,7 +982,7 @@ function ActionPageContent() {
           <div className="preview-card" onClick={(e) => e.stopPropagation()}>
             <div className="preview-header">
               <h2>{previewArticle.title || 'タイトルなし'}</h2>
-              <button type="button" onClick={() => setPreviewArticle(null)}>髢峨§繧・/button>
+              <button type="button" onClick={() => setPreviewArticle(null)}>閉じる</button>
             </div>
             <div className="preview-meta">
               <span>{previewArticle.status === 'submitted' ? 'マイページに保存' : '下書き'}</span>
@@ -1008,7 +1008,7 @@ function ActionPageContent() {
                   className="primary"
                   onClick={() => handleGeneratePdf(previewArticle)}
                 >
-                  PDF繧剃ｽ懈・
+                  PDFを開く
                 </button>
               )}
             </div>
