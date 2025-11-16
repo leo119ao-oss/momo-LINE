@@ -578,8 +578,8 @@ function ActionPageContent() {
     <div className="action-wrapper">
       <header className="action-header">
         <div>
-          <h1>momo・郁ｨ倅ｺ倶ｽ懈・繧ｵ繝昴・繝茨ｼ・/h1>
-          <p>莉頑律縺ｯ縺ｩ繧薙↑荳譌･縺縺｣縺滂ｼ殞omo縺ｨ縺翫＠繧・∋繧翫＠縺ｪ縺後ｉ縲∝ｰ代＠縺壹▽豌励▼縺阪ｒ險闡峨↓縺励※縺ｿ繧医≧縲・/p>
+          <h1>momo - 記事作成サポート</h1>
+          <p>記事を書いて、momoと対話しながら、あなたの体験を共有してみてください。</p>
         </div>
         <a
           className="action-link"
