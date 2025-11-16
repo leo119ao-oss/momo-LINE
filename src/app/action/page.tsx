@@ -243,7 +243,9 @@ function ActionPageContent() {
   }, [body]);
 
   const _conversationReady = _qaTurns.length >= 3;
-  const _canEdit = Boolean(userId && articleId && !loading && _conversationReady);
+  // 編集可能条件：会話が3回以上あるか、既に保存済みの記事がある場合
+  // articleIdが存在する場合は常に編集可能（保存済み記事の編集を許可）
+  const _canEdit = Boolean(userId && articleId && !loading && (_conversationReady || Boolean(articleId)));
 
   const _moodPresets = [
     { value: 'いい感じ', label: 'いい感じ！気分が良い' },
@@ -810,7 +812,7 @@ function ActionPageContent() {
                   <label className="field-label" htmlFor="article-body">本文</label>
                   <span className="word-count">{wordCount}文字</span>
                 </div>
-                {!_conversationReady && (
+                {!_conversationReady && !articleId && (
                   <div className="conversation-warning">
                     <p>まず、momoとの対話を3回以上進めてから、本文を書くことができます。</p>
                   </div>

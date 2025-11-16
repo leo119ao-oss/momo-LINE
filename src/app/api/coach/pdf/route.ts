@@ -35,12 +35,12 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { user_id, article_id, title, content } = pdfSchema.parse(body);
 
-    // 文章整形（gpt-5.1）- PDF用に文章を整える
+    // 文章整形（gpt-4.1）- PDF用に文章を整える
     let formattedContent = content;
     if (content && content.trim().length > 0) {
       try {
         const completion = await openai.chat.completions.create({
-          model: 'gpt-5.1',
+          model: 'gpt-4.1',
           messages: [
             {
               role: 'system',
