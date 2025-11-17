@@ -37,7 +37,22 @@ export async function POST(req: NextRequest) {
       });
 
     if (insertError) {
-      console.error('[AUTH_TOKEN] Token insert error:', insertError);
+      console.error('[AUTH_TOKEN] Token insert error:', JSON.stringify(insertError, null, 2));
+      console.error('[AUTH_TOKEN] Insert data:', { token, user_id, expires_at: expiresAt.toISOString() });
+      
+      // テーブルが存在しない場合のエラー
+      if (insertError.code === '42P01' || insertError.message?.includes('does not exist')) {
+        console.error('[AUTH_TOKEN] Tokens table does not exist. Please run create_tokens_table.sql in Supabase.');
+        return NextResponse.json(
+          { 
+            error: 'Tokens table does not exist',
+            details: 'Please create the tokens table in Supabase using create_tokens_table.sql',
+            code: 'TABLE_NOT_FOUND'
+          },
+          { status: 500 }
+        );
+      }
+      
       // トークンの重複エラーの場合、リトライ
       if (insertError.code === '23505') {
         // トークンが重複した場合、新しいトークンを生成して再試行
@@ -51,6 +66,7 @@ export async function POST(req: NextRequest) {
           });
 
         if (retryError) {
+          console.error('[AUTH_TOKEN] Retry insert error:', JSON.stringify(retryError, null, 2));
           throw retryError;
         }
 
@@ -60,7 +76,16 @@ export async function POST(req: NextRequest) {
           expires_in: TOKEN_EXPIRY_MS / 1000, // 秒単位
         });
       }
-      throw insertError;
+      
+      // その他のエラー
+      return NextResponse.json(
+        {
+          error: 'トークンの生成に失敗しました',
+          details: insertError.message || 'Unknown error',
+          code: insertError.code || 'UNKNOWN',
+        },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({
@@ -80,8 +105,17 @@ export async function POST(req: NextRequest) {
     }
 
     console.error('[AUTH_TOKEN] Error:', error);
+    console.error('[AUTH_TOKEN] Error details:', JSON.stringify(error, null, 2));
+    
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorCode = (error as any)?.code || 'UNKNOWN';
+    
     return NextResponse.json(
-      { error: 'トークンの生成に失敗しました' },
+      { 
+        error: 'トークンの生成に失敗しました',
+        details: errorMessage,
+        code: errorCode,
+      },
       { status: 500 }
     );
   }
@@ -106,7 +140,34 @@ export async function GET(req: NextRequest) {
       .eq('token', token)
       .single();
 
-    if (fetchError || !tokenData) {
+    if (fetchError) {
+      console.error('[AUTH_TOKEN] Token fetch error:', JSON.stringify(fetchError, null, 2));
+      console.error('[AUTH_TOKEN] Token searched:', token);
+      
+      // テーブルが存在しない場合のエラー
+      if (fetchError.code === '42P01' || fetchError.message?.includes('does not exist')) {
+        return NextResponse.json(
+          { 
+            error: 'Tokens table does not exist',
+            details: 'Please create the tokens table in Supabase using create_tokens_table.sql',
+            code: 'TABLE_NOT_FOUND'
+          },
+          { status: 500 }
+        );
+      }
+      
+      return NextResponse.json(
+        { 
+          error: 'Invalid or expired token',
+          details: fetchError.message || 'Token not found',
+          code: fetchError.code || 'TOKEN_NOT_FOUND'
+        },
+        { status: 401 }
+      );
+    }
+    
+    if (!tokenData) {
+      console.error('[AUTH_TOKEN] Token data is null for token:', token);
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
@@ -135,8 +196,17 @@ export async function GET(req: NextRequest) {
     });
   } catch (error: any) {
     console.error('[AUTH_TOKEN] Error:', error);
+    console.error('[AUTH_TOKEN] Error details:', JSON.stringify(error, null, 2));
+    
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorCode = error?.code || 'UNKNOWN';
+    
     return NextResponse.json(
-      { error: 'トークンの検証に失敗しました' },
+      { 
+        error: 'トークンの検証に失敗しました',
+        details: errorMessage,
+        code: errorCode,
+      },
       { status: 500 }
     );
   }

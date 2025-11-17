@@ -149,10 +149,18 @@ ${loginUrl}
           text: message,
         } as any);
         return;
+      } else {
+        // トークン生成に失敗した場合の詳細ログ
+        console.error('[WEBHOOK] Token generation failed:', JSON.stringify(tokenData, null, 2));
       }
+    } else {
+      // HTTPエラーの場合
+      const errorData = await tokenRes.json().catch(() => ({}));
+      console.error('[WEBHOOK] Token generation HTTP error:', tokenRes.status, JSON.stringify(errorData, null, 2));
     }
   } catch (err) {
     console.error('[WEBHOOK] Token generation error:', err);
+    console.error('[WEBHOOK] Error details:', JSON.stringify(err, null, 2));
   }
 
   // トークン生成に失敗した場合のフォールバック
