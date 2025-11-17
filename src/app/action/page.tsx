@@ -396,7 +396,6 @@ function ActionPageContent() {
       const outlines = (data.outlines || []) as OutlineSuggestion[];
       setOutlineSuggestions(outlines);
       setLeadSuggestion('');
-      setPauseAfterOutline(true);
       setShowCorrectionReminder(true);
 
       if (outlines.length > 0) {
@@ -424,7 +423,12 @@ function ActionPageContent() {
           setLeadSuggestion(leadData.suggestion as string);
         }
       }
-      setMessage('momo: アウトラインを作成しました。これを使って本文を書いてみてください。もし修正したい点があれば、対話を続けることもできます。');
+      
+      setMessage('momo: アウトラインを作成しました。これを使って本文を書いてみてください。よければ、もう少し深掘りにお付き合いください。');
+      
+      // アウトライン生成後、次の質問を生成（深掘りの質問）
+      setPauseAfterOutline(false);
+      await fetchNextQuestion(_qaTurns, { force: true });
     } catch (err) {
       console.error('[ACTION] Outline generation error:', err);
       setMessage(getErrorMessage(err, 'アウトラインの生成に失敗しました'));
