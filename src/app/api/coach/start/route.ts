@@ -58,9 +58,28 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (articleError) {
-        console.error('[COACH_START] Article creation error:', articleError);
+        console.error('[COACH_START] Article creation error:', JSON.stringify(articleError, null, 2));
+        
+        // 接続エラーやタイムアウトエラーの場合
+        if (articleError.code === '08000' || articleError.code === '08003' || articleError.code === '08006' || 
+            articleError.message?.includes('connection') || articleError.message?.includes('timeout')) {
+          console.error('[COACH_START] Database connection error - possible concurrent access issue');
+          return NextResponse.json(
+            { 
+              error: 'データベース接続エラーが発生しました',
+              details: '同時アクセスが多い可能性があります。しばらく待ってから再度お試しください。',
+              code: articleError.code || 'CONNECTION_ERROR',
+            },
+            { status: 503 } // Service Unavailable
+          );
+        }
+        
         return NextResponse.json(
-          { error: '記事の作成に失敗しました' },
+          { 
+            error: '記事の作成に失敗しました',
+            details: articleError.message || 'Unknown error',
+            code: articleError.code || 'UNKNOWN',
+          },
           { status: 500 }
         );
       }

@@ -18,27 +18,58 @@ export async function POST(req: NextRequest) {
     const { user_id } = tokenSchema.parse(body);
 
     // 古いトークンをクリーンアップ（期限切れのトークンを削除）
-    await supabaseAdmin
+    // 非同期で実行して、メイン処理をブロックしない
+    supabaseAdmin
       .from('tokens')
       .delete()
-      .lt('expires_at', new Date().toISOString());
-
-    // 新しいトークンを生成
-    const token = nanoid(32);
-    const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_MS);
-
-    // データベースにトークンを保存
-    const { error: insertError } = await supabaseAdmin
-      .from('tokens')
-      .insert({
-        token,
-        user_id,
-        expires_at: expiresAt.toISOString(),
+      .lt('expires_at', new Date().toISOString())
+      .then(() => {
+        // クリーンアップ成功（ログは出さない）
+      })
+      .catch((err) => {
+        // クリーンアップエラーは無視（メイン処理に影響しない）
+        console.warn('[AUTH_TOKEN] Cleanup error (ignored):', err);
       });
+
+    // 新しいトークンを生成（最大3回までリトライ）
+    let token = nanoid(32);
+    const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_MS);
+    let insertError: any = null;
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    while (retryCount < maxRetries) {
+      const { error } = await supabaseAdmin
+        .from('tokens')
+        .insert({
+          token,
+          user_id,
+          expires_at: expiresAt.toISOString(),
+        });
+
+      if (!error) {
+        // 成功
+        break;
+      }
+
+      insertError = error;
+      
+      // トークンの重複エラーの場合のみリトライ
+      if (error.code === '23505' && retryCount < maxRetries - 1) {
+        retryCount++;
+        token = nanoid(32); // 新しいトークンを生成
+        console.warn(`[AUTH_TOKEN] Token collision, retrying (${retryCount}/${maxRetries})...`);
+        continue;
+      }
+      
+      // その他のエラーまたは最大リトライ回数に達した場合
+      break;
+    }
 
     if (insertError) {
       console.error('[AUTH_TOKEN] Token insert error:', JSON.stringify(insertError, null, 2));
       console.error('[AUTH_TOKEN] Insert data:', { token, user_id, expires_at: expiresAt.toISOString() });
+      console.error('[AUTH_TOKEN] Retry count:', retryCount);
       
       // テーブルが存在しない場合のエラー
       if (insertError.code === '42P01' || insertError.message?.includes('does not exist')) {
@@ -53,28 +84,18 @@ export async function POST(req: NextRequest) {
         );
       }
       
-      // トークンの重複エラーの場合、リトライ
-      if (insertError.code === '23505') {
-        // トークンが重複した場合、新しいトークンを生成して再試行
-        const retryToken = nanoid(32);
-        const { error: retryError } = await supabaseAdmin
-          .from('tokens')
-          .insert({
-            token: retryToken,
-            user_id,
-            expires_at: expiresAt.toISOString(),
-          });
-
-        if (retryError) {
-          console.error('[AUTH_TOKEN] Retry insert error:', JSON.stringify(retryError, null, 2));
-          throw retryError;
-        }
-
-        return NextResponse.json({
-          ok: true,
-          token: retryToken,
-          expires_in: TOKEN_EXPIRY_MS / 1000, // 秒単位
-        });
+      // 接続エラーやタイムアウトエラーの場合
+      if (insertError.code === '08000' || insertError.code === '08003' || insertError.code === '08006' || 
+          insertError.message?.includes('connection') || insertError.message?.includes('timeout')) {
+        console.error('[AUTH_TOKEN] Database connection error - possible concurrent access issue');
+        return NextResponse.json(
+          {
+            error: 'データベース接続エラーが発生しました',
+            details: '同時アクセスが多い可能性があります。しばらく待ってから再度お試しください。',
+            code: insertError.code || 'CONNECTION_ERROR',
+          },
+          { status: 503 } // Service Unavailable
+        );
       }
       
       // その他のエラー
