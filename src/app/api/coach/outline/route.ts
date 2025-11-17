@@ -64,23 +64,34 @@ ${truncatedConversationText}
 
 300-500字で書けるような構成を提案してください。完璧を求めず、思いついたことから書けるよう促す構成にしてください。`;
 
-    const completion = await openai.chat.completions.create({
-      model: 'gpt-4.1',
-      messages: [
-        { role: 'system', content: SYSTEM_PROMPT },
-        { role: 'user', content: userPrompt },
-      ],
-      temperature: 0.7,
-      response_format: { type: 'json_object' },
-      max_tokens: 1200,
-    });
+    let completion;
+    try {
+      completion = await openai.chat.completions.create({
+        model: 'gpt-4.1',
+        messages: [
+          { role: 'system', content: SYSTEM_PROMPT },
+          { role: 'user', content: userPrompt },
+        ],
+        temperature: 0.7,
+        response_format: { type: 'json_object' },
+        max_tokens: 1200,
+      });
+    } catch (aiError: any) {
+      console.error('[COACH_OUTLINE] OpenAI API error:', JSON.stringify(aiError, null, 2));
+      throw new Error(`AI生成エラー: ${aiError?.message || 'Unknown error'}`);
+    }
 
     const responseText = completion.choices[0]?.message?.content?.trim() || '{}';
+    console.log('[COACH_OUTLINE] AI response:', responseText.substring(0, 200)); // デバッグ用
+    
     let parsedResponse: { outlines?: Array<{ title: string; points: string[] }> };
 
     try {
       parsedResponse = JSON.parse(responseText);
-    } catch {
+      console.log('[COACH_OUTLINE] Parsed response:', JSON.stringify(parsedResponse, null, 2));
+    } catch (parseError) {
+      console.error('[COACH_OUTLINE] JSON parse error:', parseError);
+      console.error('[COACH_OUTLINE] Raw response:', responseText);
       // JSONパースに失敗した場合のフォールバック
       parsedResponse = {
         outlines: [
@@ -123,8 +134,17 @@ ${truncatedConversationText}
     }
 
     console.error('[COACH_OUTLINE] Error:', error);
+    console.error('[COACH_OUTLINE] Error details:', JSON.stringify(error, null, 2));
+    
+    const errorMessage = error instanceof Error ? error.message : String(error);
+    const errorCode = (error as any)?.code || 'UNKNOWN';
+    
     return NextResponse.json(
-      { error: 'アウトラインの生成に失敗しました' },
+      { 
+        error: 'アウトラインの生成に失敗しました',
+        details: errorMessage,
+        code: errorCode,
+      },
       { status: 500 }
     );
   }

@@ -409,10 +409,16 @@ function ActionPageContent() {
 
       const data = await res.json();
       if (!res.ok || !data.ok) {
-        throw new Error(data?.error || 'アウトラインの生成に失敗しました');
+        console.error('[ACTION] Outline generation failed:', res.status, data);
+        const errorMessage = data?.details || data?.error || 'アウトラインの生成に失敗しました';
+        throw new Error(errorMessage);
       }
 
       const outlines = (data.outlines || []) as OutlineSuggestion[];
+      if (!outlines || outlines.length === 0) {
+        console.warn('[ACTION] No outlines returned from API');
+        throw new Error('アウトラインが生成されませんでした。もう一度お試しください。');
+      }
       setOutlineSuggestions(outlines);
       setLeadSuggestion('');
       setShowCorrectionReminder(true);

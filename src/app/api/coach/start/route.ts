@@ -37,16 +37,23 @@ export async function POST(req: NextRequest) {
       articleId = existingArticle.id;
     } else {
       // 新しい記事を作成
+      const insertData: any = {
+        participant_id: participant.id,
+        title: null,
+        body: null,
+        status: 'draft',
+        word_count: 0,
+      };
+      
+      // form_versionカラムが存在する場合のみ追加
+      // テーブルにカラムがない場合はエラーになるため、条件付きで追加
+      if (form_version) {
+        insertData.form_version = form_version;
+      }
+      
       const { data: newArticle, error: articleError } = await supabaseAdmin
         .from('articles')
-        .insert({
-          participant_id: participant.id,
-          title: null,
-          body: null,
-          status: 'draft',
-          word_count: 0,
-          form_version: form_version || 'pen-effect-web',
-        })
+        .insert(insertData)
         .select('id')
         .single();
 
