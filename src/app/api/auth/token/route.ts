@@ -1,15 +1,13 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { nanoid } from 'nanoid';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 
 export const dynamic = 'force-dynamic';
 
 const tokenSchema = z.object({
   user_id: z.string().min(1),
 });
-
-// 簡易的なトークンストア（本番環境ではRedis等を使用すべき）
-const tokenStore = new Map<string, { user_id: string; expires_at: number }>();
 
 // 1日間有効なトークンを生成
 const TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24時間 = 1日
@@ -19,20 +17,51 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { user_id } = tokenSchema.parse(body);
 
-    // 古いトークンをクリーンアップ
-    const now = Date.now();
-    for (const [token, data] of tokenStore.entries()) {
-      if (data.expires_at < now) {
-        tokenStore.delete(token);
-      }
-    }
+    // 古いトークンをクリーンアップ（期限切れのトークンを削除）
+    await supabaseAdmin
+      .from('tokens')
+      .delete()
+      .lt('expires_at', new Date().toISOString());
 
     // 新しいトークンを生成
     const token = nanoid(32);
-    tokenStore.set(token, {
-      user_id,
-      expires_at: now + TOKEN_EXPIRY_MS,
-    });
+    const expiresAt = new Date(Date.now() + TOKEN_EXPIRY_MS);
+
+    // データベースにトークンを保存
+    const { error: insertError } = await supabaseAdmin
+      .from('tokens')
+      .insert({
+        token,
+        user_id,
+        expires_at: expiresAt.toISOString(),
+      });
+
+    if (insertError) {
+      console.error('[AUTH_TOKEN] Token insert error:', insertError);
+      // トークンの重複エラーの場合、リトライ
+      if (insertError.code === '23505') {
+        // トークンが重複した場合、新しいトークンを生成して再試行
+        const retryToken = nanoid(32);
+        const { error: retryError } = await supabaseAdmin
+          .from('tokens')
+          .insert({
+            token: retryToken,
+            user_id,
+            expires_at: expiresAt.toISOString(),
+          });
+
+        if (retryError) {
+          throw retryError;
+        }
+
+        return NextResponse.json({
+          ok: true,
+          token: retryToken,
+          expires_in: TOKEN_EXPIRY_MS / 1000, // 秒単位
+        });
+      }
+      throw insertError;
+    }
 
     return NextResponse.json({
       ok: true,
@@ -70,17 +99,30 @@ export async function GET(req: NextRequest) {
       );
     }
 
-    const tokenData = tokenStore.get(token);
-    if (!tokenData) {
+    // データベースからトークンを検索
+    const { data: tokenData, error: fetchError } = await supabaseAdmin
+      .from('tokens')
+      .select('user_id, expires_at')
+      .eq('token', token)
+      .single();
+
+    if (fetchError || !tokenData) {
       return NextResponse.json(
         { error: 'Invalid or expired token' },
         { status: 401 }
       );
     }
 
-    const now = Date.now();
-    if (tokenData.expires_at < now) {
-      tokenStore.delete(token);
+    // 期限切れチェック
+    const expiresAt = new Date(tokenData.expires_at);
+    const now = new Date();
+    if (expiresAt < now) {
+      // 期限切れトークンを削除
+      await supabaseAdmin
+        .from('tokens')
+        .delete()
+        .eq('token', token);
+      
       return NextResponse.json(
         { error: 'Token expired' },
         { status: 401 }

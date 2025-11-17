@@ -119,12 +119,7 @@ function ActionPageContent() {
 
     async function resolveUser() {
       try {
-        if (queryUserId) {
-          if (!active) return;
-          setUserId(queryUserId);
-          return;
-        }
-
+        // トークンが優先（セキュリティのため）
         if (token) {
           const res = await fetch(`/api/auth/token?token=${encodeURIComponent(token)}`);
           if (res.ok) {
@@ -132,17 +127,41 @@ function ActionPageContent() {
             if (data.ok && data.user_id && active) {
               setUserId(data.user_id);
               return;
+            } else {
+              // トークン検証に失敗した場合、エラーを表示
+              if (active) {
+                setError('トークンの検証に失敗しました。LINE Bot から再度アクセスしてください。');
+              }
+              return;
             }
+          } else {
+            // トークン検証のHTTPエラー
+            const errorData = await res.json().catch(() => ({}));
+            console.error('[ACTION] Token validation failed:', res.status, errorData);
+            if (active) {
+              setError('トークンの検証に失敗しました。LINE Bot から再度アクセスしてください。');
+            }
+            return;
           }
         }
 
+        // トークンがない場合、queryUserIdは使用しない（セキュリティのため）
+        // ただし、開発環境ではフォールバックを許可（オプション）
+        if (queryUserId && process.env.NODE_ENV === 'development') {
+          console.warn('[ACTION] Using queryUserId in development mode. This should not be used in production.');
+          if (!active) return;
+          setUserId(queryUserId);
+          return;
+        }
+
+        // トークンもqueryUserIdもない場合、エラー
         if (active) {
           setError('ユーザー情報を取得できませんでした。LINE Bot から再度アクセスしてください。');
         }
       } catch (err) {
         console.error('[ACTION] Failed to resolve user:', err);
         if (active) {
-          setError(getErrorMessage(err, 'ユーザー情報の取得に失敗しました。'));
+          setError(getErrorMessage(err, 'ユーザー情報の取得に失敗しました。LINE Bot から再度アクセスしてください。'));
         }
       } finally {
         if (active) {
