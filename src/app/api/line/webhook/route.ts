@@ -134,14 +134,14 @@ async function replyWithLoginLink(replyToken: string, userId: string, options: {
 以下のURLをクリックしてください：
 ${loginUrl}
 
-※このリンクは10分間有効です。
+※このリンクは1日間有効です。
 ※スマホでもPCでもアクセスできます。`
           : `研究協力のための記事作成サポートを開始できます！
 
 以下のリンクから記事コーチモードにアクセスしてください：
 ${loginUrl}
 
-※このリンクは10分間有効です。
+※このリンクは1日間有効です。
 ※スマホでもPCでもアクセスできます。`;
 
         await lineClient.replyMessage(replyToken, {

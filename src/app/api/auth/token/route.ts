@@ -11,8 +11,8 @@ const tokenSchema = z.object({
 // 簡易的なトークンストア（本番環境ではRedis等を使用すべき）
 const tokenStore = new Map<string, { user_id: string; expires_at: number }>();
 
-// 10分間有効なトークンを生成
-const TOKEN_EXPIRY_MS = 10 * 60 * 1000;
+// 1日間有効なトークンを生成
+const TOKEN_EXPIRY_MS = 24 * 60 * 60 * 1000; // 24時間 = 1日
 
 export async function POST(req: NextRequest) {
   try {
