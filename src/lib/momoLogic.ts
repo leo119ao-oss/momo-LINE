@@ -323,13 +323,13 @@ async function handleLiffQA(
     content: text,
   });
 
-    // 会話履歴を取得（最新5件に制限して、古い応答の影響を減らす）
+    // 会話履歴を取得（最新15件）
     const { data: chatLogs } = await supabaseAdmin
       .from('chat_logs')
       .select('*')
       .eq('participant_id', participant.id)
       .order('created_at', { ascending: false })
-      .limit(5);
+      .limit(15);
 
     const conversationHistory = (chatLogs || [])
       .reverse()
@@ -338,20 +338,84 @@ async function handleLiffQA(
         content: log.content
       }));
 
+    // パーソナルなデータを取得または生成
+    let personalSummary = (participant as any).personal_summary || null;
+    
+    // 15件以上の会話履歴がある場合、パーソナルなデータを更新
+    if (chatLogs && chatLogs.length >= 10) {
+      try {
+        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
+        
+        // 直近15件の会話からパーソナルなデータを抽出（長い会話は要約）
+        const recentConversations = chatLogs.slice(0, 15).reverse();
+        const conversationText = recentConversations
+          .map(log => {
+            const content = log.content.length > 200 ? log.content.slice(0, 200) + '...' : log.content;
+            return `${log.role === 'user' ? 'ユーザー' : 'momo'}: ${content}`;
+          })
+          .join('\n');
+        
+        // 会話履歴が長すぎる場合は要約（最大3000文字）
+        const truncatedConversationText = conversationText.length > 3000 
+          ? conversationText.slice(-3000) 
+          : conversationText;
+        
+        // パーソナルなデータを生成（既存のデータがある場合は更新）
+        const summaryPrompt = personalSummary
+          ? `以下の会話履歴を参考に、ユーザーのパーソナルな特徴を更新してください。既存のまとめ：${personalSummary}\n\n会話履歴：\n${truncatedConversationText}\n\nこのユーザーはどんな人か？興味・関心・性格・話し方の特徴などを簡潔にまとめてください（200文字以内）。`
+          : `以下の会話履歴を参考に、ユーザーのパーソナルな特徴をまとめてください。\n\n会話履歴：\n${truncatedConversationText}\n\nこのユーザーはどんな人か？興味・関心・性格・話し方の特徴などを簡潔にまとめてください（200文字以内）。`;
+        
+        const summaryCompletion = await openai.chat.completions.create({
+          model: 'gpt-4.1-mini',
+          messages: [
+            {
+              role: 'system',
+              content: 'あなたはユーザーの会話履歴から、その人のパーソナルな特徴を簡潔にまとめるAIです。興味・関心・性格・話し方の特徴などを200文字以内でまとめてください。',
+            },
+            { role: 'user', content: summaryPrompt },
+          ],
+          temperature: 0.7,
+          max_tokens: 300,
+        });
+        
+        personalSummary = summaryCompletion.choices[0]?.message?.content?.trim() || null;
+        
+        // パーソナルなデータを保存
+        if (personalSummary) {
+          await supabaseAdmin
+            .from('participants')
+            .update({ personal_summary: personalSummary })
+            .eq('id', participant.id);
+        }
+      } catch (error) {
+        console.error('[LIFF_QA] Error generating personal summary:', error);
+        // エラーが発生しても既存のpersonalSummaryを使用
+      }
+    }
+
     // LIFFアプリQ&Aの応答を生成
     const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY! });
     
+    // パーソナルなデータをプロンプトに含める
+    const personalContext = personalSummary
+      ? `\n\n【このユーザーについて】\n${personalSummary}\n\n上記の情報を参考に、このユーザーに適した回答をしてください。`
+      : '';
+    
     // 「記事」が含まれている場合は、プロンプトに明示的な指示を追加
     const enhancedSystemPrompt = lowerText.includes('記事') || lowerText.includes('日記')
-      ? LIFF_QA_SYSTEM + '\n\n【重要】ユーザーが「記事」について質問している場合、必ず研究協力の日記作成サポートに導いてください。お母さん大学への投稿方法は説明しません。'
-      : LIFF_QA_SYSTEM;
+      ? LIFF_QA_SYSTEM + '\n\n【重要】ユーザーが「記事」について質問している場合、必ず研究協力の日記作成サポートに導いてください。お母さん大学への投稿方法は説明しません。' + personalContext
+      : LIFF_QA_SYSTEM + personalContext;
+    
+    // 会話履歴が長すぎる場合は最新の部分のみを使用（トークン制限を考慮）
+    const maxHistoryLength = 15;
+    const trimmedHistory = conversationHistory.slice(-maxHistoryLength);
     
     const completion = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-          messages: [
+      model: 'gpt-4.1-mini',
+      messages: [
         { role: 'system', content: enhancedSystemPrompt },
-        ...conversationHistory,
-            { role: 'user', content: text }
+        ...trimmedHistory,
+        { role: 'user', content: text }
       ],
       temperature: 0.7,
       max_tokens: 500
