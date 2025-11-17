@@ -24,6 +24,9 @@ export async function POST(req: NextRequest) {
     let analyzedBody = body;
     if (body && body.trim().length > 0 && status === 'submitted') {
       try {
+        // 長い文章を処理するため、適切にトランケート（最大8000文字）
+        const truncatedBody = body.length > 8000 ? body.slice(0, 8000) + '...' : body;
+        
         const completion = await openai.chat.completions.create({
           model: 'gpt-5.1',
           messages: [
@@ -33,11 +36,11 @@ export async function POST(req: NextRequest) {
             },
             {
               role: 'user',
-              content: `以下の文章を読みやすく整えてください：\n\n${body}`,
+              content: `以下の文章を読みやすく整えてください：\n\n${truncatedBody}`,
             },
           ],
           temperature: 0.7,
-          max_tokens: 2000,
+          max_tokens: 4000,
         });
         analyzedBody = completion.choices[0]?.message?.content?.trim() || body;
       } catch (error) {

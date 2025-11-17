@@ -30,18 +30,26 @@ export async function POST(req: NextRequest) {
 
     let userPrompt = '';
 
+    // 長いコンテキストを処理するため、適切にトランケート
+    const truncatedTheme = (context.theme || '今日の気づき').length > 200 
+      ? (context.theme || '今日の気づき').slice(0, 200) + '...' 
+      : (context.theme || '今日の気づき');
+    const truncatedOutline = context.outline?.map(point => 
+      point.length > 100 ? point.slice(0, 100) + '...' : point
+    ) || [];
+
     if (type === 'lead') {
       userPrompt = `以下のテーマとアウトラインから、記事の書き出し（リード文）を生成してください。
 
-テーマ: ${context.theme || '今日の気づき'}
-アウトライン: ${context.outline?.join('、') || ''}
+テーマ: ${truncatedTheme}
+アウトライン: ${truncatedOutline.join('、')}
 トーン: ${context.tone || '優しい'}
 
 100-150字程度の書き出しを生成してください。優しく親しみやすい文体で、読者が続きを読みたくなるような書き出しにしてください。`;
     } else if (type === 'title') {
       userPrompt = `以下のテーマから、記事のタイトルを生成してください。
 
-テーマ: ${context.theme || '今日の気づき'}
+テーマ: ${truncatedTheme}
 
 20-30字程度のタイトルを生成してください。`;
     } else {
@@ -55,7 +63,7 @@ export async function POST(req: NextRequest) {
         { role: 'user', content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 200,
+      max_tokens: 300,
     });
 
     const suggestion = completion.choices[0]?.message?.content?.trim() || '';

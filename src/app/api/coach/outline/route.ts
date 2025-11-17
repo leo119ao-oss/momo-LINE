@@ -44,15 +44,23 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { participant_id, article_id, qa_context } = outlineSchema.parse(body);
 
-    // 対話内容をまとめる
+    // 対話内容をまとめる（長い回答は要約）
     const conversationText = qa_context
-      .map((qa, idx) => `Q${idx + 1}: ${qa.question}\nA${idx + 1}: ${qa.answer}`)
+      .map((qa, idx) => {
+        const truncatedAnswer = qa.answer.length > 500 ? qa.answer.slice(0, 500) + '...' : qa.answer;
+        return `Q${idx + 1}: ${qa.question}\nA${idx + 1}: ${truncatedAnswer}`;
+      })
       .join('\n\n');
+
+    // 対話内容が長すぎる場合は、最新の会話のみを使用（最大5000文字）
+    const truncatedConversationText = conversationText.length > 5000 
+      ? conversationText.slice(-5000) 
+      : conversationText;
 
     const userPrompt = `以下の対話内容から、記事の構成案（アウトライン）を2-3個生成してください。
 
 対話内容:
-${conversationText}
+${truncatedConversationText}
 
 300-500字で書けるような構成を提案してください。完璧を求めず、思いついたことから書けるよう促す構成にしてください。`;
 
@@ -64,7 +72,7 @@ ${conversationText}
       ],
       temperature: 0.7,
       response_format: { type: 'json_object' },
-      max_tokens: 800,
+      max_tokens: 1200,
     });
 
     const responseText = completion.choices[0]?.message?.content?.trim() || '{}';

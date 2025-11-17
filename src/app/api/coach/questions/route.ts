@@ -206,15 +206,18 @@ export async function POST(req: NextRequest) {
         : '最初の質問を生成してください。「今日はどんなことがあったんでしょう？『これを書き残したいな』と思うようなことがあれば、少し教えてください。」というような、素材収集の質問を1つ生成してください。'
       : `これまでの対話を踏まえて、次の質問を1つ生成してください。深掘り構造（出来事→シーン→感情→背景→気づき）に沿って、適切な段階の質問を生成してください。`;
 
+    // 長い対話履歴を処理するため、最新の会話のみを使用（最大10件）
+    const recentHistory = conversationHistory.slice(-10);
+    
     const completion = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
       messages: [
         { role: 'system', content: SYSTEM_PROMPT },
-        ...conversationHistory,
+        ...recentHistory,
         { role: 'user', content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 200,
+      max_tokens: 300,
     });
 
     let question = completion.choices[0]?.message?.content?.trim() || '今日感じたことや気づきがあれば、自由に教えてください。';

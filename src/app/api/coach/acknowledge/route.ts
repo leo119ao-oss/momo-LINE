@@ -46,10 +46,13 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { question, answer } = acknowledgeSchema.parse(body);
 
+    // 長い回答を処理するため、回答を要約（最大500文字）
+    const truncatedAnswer = answer.length > 500 ? answer.slice(0, 500) + '...' : answer;
+    
     const userPrompt = `ユーザーが以下の質問に答えてくれました。
 
 質問: ${question}
-回答: ${answer}
+回答: ${truncatedAnswer}
 
 この回答に対して、momoらしい控えめな共感の言葉を短く（50文字程度）返してください。
 - ユーザーの言葉を引用しながら返す
@@ -64,7 +67,7 @@ export async function POST(req: NextRequest) {
         { role: 'user', content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 100,
+      max_tokens: 150,
     });
 
     const message = completion.choices[0]?.message?.content?.trim() || 'ありがとう、聞かせてくれて。';
