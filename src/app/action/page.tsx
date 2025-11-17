@@ -283,21 +283,21 @@ function ActionPageContent() {
       const data = await res.json();
 
       if (res.ok && data.ok) {
-        const nextQuestion = data.question ?? '質問を生成できませんでした。';
+        const nextQuestion = data.question ?? '';
 
         setCurrentQuestion(nextQuestion);
         if (data.suggestedTheme) {
           setThemeSuggestion(data.suggestedTheme);
         }
       } else {
-        setCurrentQuestion('質問を生成できませんでした。');
+        setCurrentQuestion('');
       }
     } catch (err) {
       console.error('[ACTION] Failed to fetch question:', err);
       const errorMessage = err instanceof Error ? err.message : 'Unknown error';
       console.error('[ACTION] Error details:', { errorMessage, model: 'gpt-4.1-mini' });
-      setCurrentQuestion('質問を生成できませんでした。');
-      setMessage(`momo: エラーが発生しました: ${errorMessage}`);
+      setCurrentQuestion('');
+      // エラーメッセージは表示しない（ユーザーに不安を与えないため）
     } finally {
       setQuestionLoading(false);
     }
@@ -806,7 +806,7 @@ function ActionPageContent() {
                   {_questionLoading
                     ? 'momoが質問を考えています...'
                     : _warmupComplete
-                      ? (_currentQuestion || '質問を生成できませんでした。')
+                      ? (_currentQuestion || '')
                       : 'まず、ウォームアップを完了してから対話を始めましょう。'}
                 </div>
                 <textarea
