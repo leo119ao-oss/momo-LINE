@@ -441,17 +441,15 @@ function ActionPageContent() {
 
   function _applyOutline(outline: OutlineSuggestion) {
     if (!outline) return;
-    if (!title) {
-      setTitle(outline.title);
-    }
+    
+    // タイトルを置き換え（既存のタイトルがあっても置き換える）
+    setTitle(outline.title);
 
     const outlineText = outline.points.map((point, idx) => `${idx + 1}. ${point}`).join('\n');
-    if (!body.trim()) {
-      const intro = leadSuggestion ? `${leadSuggestion}\n\n` : '';
-      setBody(`${intro}${outlineText}\n\nここから本文を書いてみてください。`);
-    } else {
-      setBody((prev) => `${prev}\n\n${outlineText}`);
-    }
+    const intro = leadSuggestion ? `${leadSuggestion}\n\n` : '';
+    // 本文を置き換え（既存の本文があっても置き換える）
+    setBody(`${intro}${outlineText}\n\nここから本文を書いてみてください。`);
+    
     setMessage('momo: アウトラインを適用しました。本文を書いてみてください。');
   }
 
@@ -838,6 +836,14 @@ function ActionPageContent() {
             <div className="action-card outline-card">
               <h2>生成されたアウトライン</h2>
               <p>momoが対話の内容から、記事の構成案を作りました。これを使って本文を書いてみてください。</p>
+              
+              {leadSuggestion && (
+                <div className="lead-suggestion">
+                  <h3>リード文の提案</h3>
+                  <p>{leadSuggestion}</p>
+                </div>
+              )}
+              
               <div className="outline-list">
                 {_outlineSuggestions.map((outline, index) => (
                   <div key={`${outline.title}-${index}`} className="outline-item">
@@ -858,13 +864,7 @@ function ActionPageContent() {
                   </div>
                 ))}
               </div>
-
-              {leadSuggestion && (
-                <div className="lead-suggestion">
-                  <h3>リード文の提案</h3>
-                  <p>{leadSuggestion}</p>
-                </div>
-              )}
+              
               <p className="outline-note">※ このアウトラインを使って本文を書いてみてください。momoとの対話を通じて、さらに詳しく話すこともできます。</p>
               <button
                 type="button"

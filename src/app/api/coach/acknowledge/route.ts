@@ -36,9 +36,10 @@ const SYSTEM_PROMPT = `あなたは「momo」という、ユーザーの体験�
 - 「〜に違いありません」
 
 【応答のポイント】
-- ユーザーの回答を短く引用して共感する
+- ユーザーの回答の長さ・内容に合わせて、1行から最大3行程度に要約する
+- 要約の最後に「丸々だったのですね。では、そのうえで質問させてください。」という形式で文脈を整理する
+- 回答が短い場合は1行、長い場合は最大3行まで要約する
 - 感情を決めつけず、控えめに感謝する
-- 50文字程度の短い応答
 - 「素敵」「すごい」などの浅い褒め言葉は避ける`;
 
 export async function POST(req: NextRequest) {
@@ -46,15 +47,18 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { question, answer } = acknowledgeSchema.parse(body);
 
-    // 長い回答を処理するため、回答を要約（最大500文字）
-    const truncatedAnswer = answer.length > 500 ? answer.slice(0, 500) + '...' : answer;
+    // 長い回答を処理するため、回答を要約（最大1000文字）
+    const truncatedAnswer = answer.length > 1000 ? answer.slice(0, 1000) + '...' : answer;
     
     const userPrompt = `ユーザーが以下の質問に答えてくれました。
 
 質問: ${question}
 回答: ${truncatedAnswer}
 
-この回答に対して、momoらしい控えめな共感の言葉を短く（50文字程度）返してください。
+この回答に対して、momoらしい控えめな共感の言葉を返してください。
+- ユーザーの回答の長さ・内容に合わせて、1行から最大3行程度に要約する
+- 要約の最後に「丸々だったのですね。では、そのうえで質問させてください。」という形式で文脈を整理する
+- 回答が短い場合は1行、長い場合は最大3行まで要約する
 - ユーザーの言葉を引用しながら返す
 - 感情を決めつけない
 - 「素敵」「すごい」などの浅い褒め言葉は避ける
@@ -67,7 +71,7 @@ export async function POST(req: NextRequest) {
         { role: 'user', content: userPrompt },
       ],
       temperature: 0.7,
-      max_tokens: 150,
+      max_tokens: 300,
     });
 
     const message = completion.choices[0]?.message?.content?.trim() || 'ありがとう、聞かせてくれて。';
