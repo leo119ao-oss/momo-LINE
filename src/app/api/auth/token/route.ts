@@ -19,10 +19,12 @@ export async function POST(req: NextRequest) {
 
     // 古いトークンをクリーンアップ（期限切れのトークンを削除）
     // 非同期で実行して、メイン処理をブロックしない
-    supabaseAdmin
-      .from('tokens')
-      .delete()
-      .lt('expires_at', new Date().toISOString())
+    Promise.resolve(
+      supabaseAdmin
+        .from('tokens')
+        .delete()
+        .lt('expires_at', new Date().toISOString())
+    )
       .then(() => {
         // クリーンアップ成功（ログは出さない）
       })
