@@ -240,13 +240,67 @@ export async function POST(req: NextRequest) {
           }
 
           console.log('[WEBHOOK] Starting new session, showing LIFF app introduction');
-          await lineClient.replyMessage(event.replyToken, {
-            type: 'text' as const,
-            text: (() => {
-              const baseUrl = getProductionUrl();
-              const actionUrl = `${baseUrl}/action?user_id=${userId}`;
-              
-              return `こんにちは！Momoです。
+          
+          // トークンを生成してURLに含める（セキュリティのため）
+          try {
+            const baseUrl = getProductionUrl();
+            const tokenRes = await fetch(`${baseUrl}/api/auth/token`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_id: userId }),
+            });
+
+            let actionUrl = '';
+            if (tokenRes.ok) {
+              const tokenData = await tokenRes.json();
+              if (tokenData.ok && tokenData.token) {
+                actionUrl = `${baseUrl}/action?token=${tokenData.token}`;
+              } else {
+                console.error('[WEBHOOK] Token generation failed:', tokenData);
+                // フォールバック: トークン生成に失敗した場合
+                actionUrl = `${baseUrl}/action?user_id=${userId}`;
+              }
+            } else {
+              console.error('[WEBHOOK] Token API error:', tokenRes.status);
+              // フォールバック: APIエラーの場合
+              actionUrl = `${baseUrl}/action?user_id=${userId}`;
+            }
+
+            await lineClient.replyMessage(event.replyToken, {
+              type: 'text' as const,
+              text: `こんにちは！Momoです。
+
+LIFFアプリで何ができるか知りたいですか？
+
+「使い方を教えて」「今日の1分って何？」「今日の気持ちって何？」など、気軽に質問してください。
+
+また、天気やニュース、レシピなど、ネット検索が必要な質問にもお答えできます。
+
+━━━━━━━━━━━━━━━━
+📝 研究協力のお願い
+━━━━━━━━━━━━━━━━
+
+研究協力のための日記（記事）作成をサポートしています！
+
+期間：11/8–11/24（延長）
+以下のURLから記事コーチモードにアクセスできます：
+${actionUrl}
+
+※このリンクは1日間有効です。
+※スマホでもPCでもアクセスできます。
+
+テーマ選びからアウトライン作成、本文執筆までサポートします。300-500字を目安に、無理なく書き上げられます。
+
+日記を書いた後は、「ペンを持つ効果アンケート」にもご協力いただけると嬉しいです。リッチメニューの「アンケート」ボタンからアクセスできます。`
+            } as any);
+          } catch (urlError) {
+            console.error('[WEBHOOK] Error generating login URL:', urlError);
+            // エラー時はトークンなしURLを送信（開発環境でのみ動作）
+            const baseUrl = getProductionUrl();
+            const actionUrl = `${baseUrl}/action?user_id=${userId}`;
+            await lineClient.replyMessage(event.replyToken, {
+              type: 'text' as const,
+              text: `こんにちは！Momoです。
 
 LIFFアプリで何ができるか知りたいですか？
 
@@ -266,9 +320,9 @@ ${actionUrl}
 
 テーマ選びからアウトライン作成、本文執筆までサポートします。300-500字を目安に、無理なく書き上げられます。
 
-日記を書いた後は、「ペンを持つ効果アンケート」にもご協力いただけると嬉しいです。リッチメニューの「アンケート」ボタンからアクセスできます。`;
-            })()
-          } as any);
+日記を書いた後は、「ペンを持つ効果アンケート」にもご協力いただけると嬉しいです。リッチメニューの「アンケート」ボタンからアクセスできます。`
+            } as any);
+          }
           continue;
         }
 
