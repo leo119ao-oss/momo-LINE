@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
       qa_context_length: body.qa_context?.length || 0 
     }, null, 2));
     
-    const { participant_id, article_id, qa_context } = outlineSchema.parse(body);
+    const { qa_context } = outlineSchema.parse(body);
     
     // qa_contextの検証
     if (!qa_context || qa_context.length === 0) {

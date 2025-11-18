@@ -47,7 +47,7 @@ export async function POST(req: NextRequest) {
     
     if (error) return new Response(error.message, { status: 400 });
     return Response.json({ ok: true, participant: { id: data.id, condition }, consent_text: consentText });
-  } catch (error) {
+  } catch {
     return new Response("Internal Server Error", { status: 500 });
   }
 }

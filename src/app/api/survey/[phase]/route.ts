@@ -45,7 +45,7 @@ export async function POST(_: NextRequest, { params }: { params: { phase: string
     
     if (error) return new Response(error.message, { status: 400 });
     return Response.json({ ok: true, summary });
-  } catch (error) {
+  } catch {
     return new Response("Internal Server Error", { status: 500 });
   }
 }
