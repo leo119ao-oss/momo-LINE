@@ -60,31 +60,65 @@ export async function POST(req: NextRequest) {
       if (articleError) {
         console.error('[COACH_START] Article creation error:', JSON.stringify(articleError, null, 2));
         
-        // 接続エラーやタイムアウトエラーの場合
-        if (articleError.code === '08000' || articleError.code === '08003' || articleError.code === '08006' || 
-            articleError.message?.includes('connection') || articleError.message?.includes('timeout')) {
-          console.error('[COACH_START] Database connection error - possible concurrent access issue');
+        // form_versionカラムが存在しないエラーの場合、form_versionを除外して再試行
+        if (articleError.code === 'PGRST204' && articleError.message?.includes('form_version')) {
+          console.warn('[COACH_START] form_version column does not exist, retrying without it...');
+          
+          // form_versionを除外したデータで再試行
+          const retryData: any = {
+            participant_id: participant.id,
+            title: null,
+            body: null,
+            status: 'draft',
+            word_count: 0,
+          };
+          
+          const { data: retryArticle, error: retryError } = await supabaseAdmin
+            .from('articles')
+            .insert(retryData)
+            .select('id')
+            .single();
+          
+          if (retryError) {
+            console.error('[COACH_START] Retry insert error:', JSON.stringify(retryError, null, 2));
+            return NextResponse.json(
+              { 
+                error: '記事の作成に失敗しました',
+                details: retryError.message || 'Unknown error',
+                code: retryError.code || 'UNKNOWN',
+              },
+              { status: 500 }
+            );
+          }
+          
+          articleId = retryArticle.id;
+        } else {
+          // 接続エラーやタイムアウトエラーの場合
+          if (articleError.code === '08000' || articleError.code === '08003' || articleError.code === '08006' || 
+              articleError.message?.includes('connection') || articleError.message?.includes('timeout')) {
+            console.error('[COACH_START] Database connection error - possible concurrent access issue');
+            return NextResponse.json(
+              { 
+                error: 'データベース接続エラーが発生しました',
+                details: '同時アクセスが多い可能性があります。しばらく待ってから再度お試しください。',
+                code: articleError.code || 'CONNECTION_ERROR',
+              },
+              { status: 503 } // Service Unavailable
+            );
+          }
+          
           return NextResponse.json(
             { 
-              error: 'データベース接続エラーが発生しました',
-              details: '同時アクセスが多い可能性があります。しばらく待ってから再度お試しください。',
-              code: articleError.code || 'CONNECTION_ERROR',
+              error: '記事の作成に失敗しました',
+              details: articleError.message || 'Unknown error',
+              code: articleError.code || 'UNKNOWN',
             },
-            { status: 503 } // Service Unavailable
+            { status: 500 }
           );
         }
-        
-        return NextResponse.json(
-          { 
-            error: '記事の作成に失敗しました',
-            details: articleError.message || 'Unknown error',
-            code: articleError.code || 'UNKNOWN',
-          },
-          { status: 500 }
-        );
+      } else {
+        articleId = newArticle.id;
       }
-
-      articleId = newArticle.id;
     }
 
     // 初回導入質問生成（gpt-4.1-mini）
