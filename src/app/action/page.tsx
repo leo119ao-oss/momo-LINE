@@ -410,7 +410,14 @@ function ActionPageContent() {
       const data = await res.json();
       if (!res.ok || !data.ok) {
         console.error('[ACTION] Outline generation failed:', res.status, data);
+        console.error('[ACTION] Request data:', {
+          participant_id: participantId,
+          article_id: articleId,
+          qa_context_length: _qaTurns?.length || 0,
+        });
         const errorMessage = data?.details || data?.error || 'アウトラインの生成に失敗しました';
+        const errorCode = data?.code || 'UNKNOWN';
+        console.error('[ACTION] Error code:', errorCode);
         throw new Error(errorMessage);
       }
 
@@ -454,9 +461,14 @@ function ActionPageContent() {
       // アウトライン生成後、次の質問を生成（深掘りの質問）
       setPauseAfterOutline(false);
       await fetchNextQuestion(_qaTurns, { force: true });
-    } catch (err) {
+    } catch (err: any) {
       console.error('[ACTION] Outline generation error:', err);
-      setMessage(getErrorMessage(err, 'アウトラインの生成に失敗しました'));
+      console.error('[ACTION] Error message:', err?.message);
+      console.error('[ACTION] Error stack:', err?.stack);
+      
+      // エラーメッセージを詳細に表示
+      const errorMessage = err?.message || 'アウトラインの生成に失敗しました';
+      setMessage(`エラー: ${errorMessage}`);
     } finally {
       setIsGeneratingOutline(false);
       setShowOutlinePrompt(false);

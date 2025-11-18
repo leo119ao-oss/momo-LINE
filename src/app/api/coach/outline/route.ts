@@ -42,7 +42,25 @@ JSON形式で以下のように出力してください：
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
+    console.log('[COACH_OUTLINE] Request body:', JSON.stringify({ 
+      participant_id: body.participant_id, 
+      article_id: body.article_id,
+      qa_context_length: body.qa_context?.length || 0 
+    }, null, 2));
+    
     const { participant_id, article_id, qa_context } = outlineSchema.parse(body);
+    
+    // qa_contextの検証
+    if (!qa_context || qa_context.length === 0) {
+      console.error('[COACH_OUTLINE] Empty qa_context');
+      return NextResponse.json(
+        {
+          error: 'バリデーションエラー',
+          details: 'qa_contextが空です。対話内容が必要です。',
+        },
+        { status: 400 }
+      );
+    }
 
     // 対話内容をまとめる（長い回答は要約）
     const conversationText = qa_context
@@ -78,6 +96,34 @@ ${truncatedConversationText}
       });
     } catch (aiError: any) {
       console.error('[COACH_OUTLINE] OpenAI API error:', JSON.stringify(aiError, null, 2));
+      console.error('[COACH_OUTLINE] OpenAI API error code:', aiError?.code);
+      console.error('[COACH_OUTLINE] OpenAI API error status:', aiError?.status);
+      console.error('[COACH_OUTLINE] OpenAI API error type:', aiError?.type);
+      
+      // レート制限エラーの場合
+      if (aiError?.status === 429 || aiError?.code === 'rate_limit_exceeded') {
+        return NextResponse.json(
+          {
+            error: 'アウトラインの生成に失敗しました',
+            details: 'AIのリクエストが多すぎます。しばらく待ってから再度お試しください。',
+            code: 'RATE_LIMIT',
+          },
+          { status: 429 }
+        );
+      }
+      
+      // タイムアウトエラーの場合
+      if (aiError?.code === 'timeout' || aiError?.message?.includes('timeout')) {
+        return NextResponse.json(
+          {
+            error: 'アウトラインの生成に失敗しました',
+            details: 'AIの応答がタイムアウトしました。もう一度お試しください。',
+            code: 'TIMEOUT',
+          },
+          { status: 504 }
+        );
+      }
+      
       throw new Error(`AI生成エラー: ${aiError?.message || 'Unknown error'}`);
     }
 
@@ -89,10 +135,26 @@ ${truncatedConversationText}
     try {
       parsedResponse = JSON.parse(responseText);
       console.log('[COACH_OUTLINE] Parsed response:', JSON.stringify(parsedResponse, null, 2));
-    } catch (parseError) {
+    } catch (parseError: any) {
       console.error('[COACH_OUTLINE] JSON parse error:', parseError);
-      console.error('[COACH_OUTLINE] Raw response:', responseText);
+      console.error('[COACH_OUTLINE] Parse error message:', parseError?.message);
+      console.error('[COACH_OUTLINE] Raw response (first 500 chars):', responseText.substring(0, 500));
+      console.error('[COACH_OUTLINE] Raw response (last 500 chars):', responseText.substring(Math.max(0, responseText.length - 500)));
+      
       // JSONパースに失敗した場合のフォールバック
+      // ただし、レスポンスが完全に空の場合はエラーを返す
+      if (!responseText || responseText.trim() === '' || responseText.trim() === '{}') {
+        console.error('[COACH_OUTLINE] Empty or invalid response from AI');
+        return NextResponse.json(
+          {
+            error: 'アウトラインの生成に失敗しました',
+            details: 'AIからの応答が無効でした。もう一度お試しください。',
+            code: 'INVALID_RESPONSE',
+          },
+          { status: 500 }
+        );
+      }
+      
       parsedResponse = {
         outlines: [
           {
