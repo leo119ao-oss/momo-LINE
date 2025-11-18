@@ -58,11 +58,10 @@ export async function POST(req: NextRequest) {
         .single();
 
       if (articleError) {
-        console.error('[COACH_START] Article creation error:', JSON.stringify(articleError, null, 2));
-        
         // form_versionカラムが存在しないエラーの場合、form_versionを除外して再試行
         if (articleError.code === 'PGRST204' && articleError.message?.includes('form_version')) {
-          console.warn('[COACH_START] form_version column does not exist, retrying without it...');
+          // リトライ可能なエラーのため、エラーログは出さずに警告のみ
+          console.log('[COACH_START] form_version column does not exist, retrying without it...');
           
           // form_versionを除外したデータで再試行
           const retryData: any = {
@@ -91,6 +90,8 @@ export async function POST(req: NextRequest) {
             );
           }
           
+          // リトライ成功
+          console.log('[COACH_START] Article created successfully after retry (without form_version)');
           articleId = retryArticle.id;
         } else {
           // 接続エラーやタイムアウトエラーの場合

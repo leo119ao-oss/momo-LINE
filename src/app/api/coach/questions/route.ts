@@ -33,7 +33,7 @@ function validateAndFixQuestion(question: string, previousAnswers: Array<{ quest
     
     // 同じタイプの質問が連続している場合は修正
     if (lastQuestionType && currentQuestionType === lastQuestionType) {
-      console.warn('[COACH_QUESTIONS] Duplicate question type detected, regenerating...');
+      // 重複質問を検出して修正（正常な動作のため、ログは出さない）
       // 次の段階の質問に進む
       if (currentQuestionType === 'feeling') {
         question = 'その背景には、どんなことがあったんでしょう？';
