@@ -161,6 +161,7 @@ function ActionPageContent() {
   const [_showOutlinePrompt, setShowOutlinePrompt] = useState<boolean>(false);
   const [_isGeneratingOutline, setIsGeneratingOutline] = useState<boolean>(false);
   const [_outlineSuggestions, setOutlineSuggestions] = useState<OutlineSuggestion[]>([]);
+  const [selectedOutline, setSelectedOutline] = useState<number | null>(null);
   const [leadSuggestion, setLeadSuggestion] = useState<string>('');
   const [themeSuggestion, setThemeSuggestion] = useState<string>('');
   const [_warmupMood, _setWarmupMood] = useState<string>('');
@@ -599,8 +600,7 @@ function ActionPageContent() {
       
       setMessage('momo: アウトラインを作成しました。これを使って本文を書いてみてください。よければ、もう少し深掘りにお付き合いください。');
       
-      // アウトライン生成後、outlineステップへ
-      setCurrentStep('outline');
+      // アウトライン生成後、outlineステップへは遷移しない（封筒をタップするまで待つ）
       
       // アウトライン生成後、次の質問を生成（深掘りの質問）
       setPauseAfterOutline(false);
@@ -633,6 +633,7 @@ function ActionPageContent() {
     
     setMessage('momo: アウトラインを適用しました。本文を書いてみてください。');
     setCurrentStep('draft');
+    setSelectedOutline(null); // 選択状態をリセット
   }
 
   function _handleContinueDialogue() {
@@ -1011,12 +1012,34 @@ function ActionPageContent() {
               </div>
             )}
             {_showOutlinePrompt && (
-              <div className="chat-bubble chat-bubble-system">
-                <div className="chat-text">
-                  <p>3つの質問に答えていただき、ありがとうございました。</p>
-                  <p>記事の構成案を作ることができます。</p>
+              <>
+                <div className="chat-bubble chat-bubble-ai">
+                  <div className="chat-avatar">momo</div>
+                  <div className="chat-text">
+                    3つの質問に答えていただき、ありがとうございました。<br />
+                    構成案の準備ができました。
+                  </div>
                 </div>
-              </div>
+                {/* 封筒（ギフトカード）風のコンポーネント */}
+                <div 
+                  className="outline-gift-card"
+                  onClick={() => {
+                    if (_outlineSuggestions.length > 0) {
+                      setCurrentStep('outline');
+                    } else {
+                      _handleOutlinePromptAccept();
+                    }
+                  }}
+                >
+                  <div className="gift-card-envelope">
+                    <div className="gift-card-flap">✉️</div>
+                    <div className="gift-card-body">
+                      <div className="gift-card-icon">📝</div>
+                      <div className="gift-card-text">構成案を見る</div>
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         </div>
@@ -1048,7 +1071,18 @@ function ActionPageContent() {
           )}
           <div className="outline-cards">
             {_outlineSuggestions.map((outline, index) => (
-              <div key={`outline-${index}`} className="outline-card-item">
+              <div 
+                key={`outline-${index}`} 
+                className={`outline-card-item ${selectedOutline === index ? 'selected' : ''}`}
+                onClick={() => setSelectedOutline(index)}
+              >
+                {selectedOutline === index && (
+                  <div className="outline-card-check">
+                    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12"></polyline>
+                    </svg>
+                  </div>
+                )}
                 <h3 className="outline-card-title">{outline.title}</h3>
                 <ul className="outline-card-points">
                   {outline.points.map((point, pointIndex) => (
@@ -1064,8 +1098,12 @@ function ActionPageContent() {
                 <button
                   type="button"
                   className="btn-primary"
-                  onClick={() => _applyOutline(_outlineSuggestions[0])}
-                  disabled={status === 'submitted'}
+                  onClick={() => {
+                    if (selectedOutline !== null) {
+                      _applyOutline(_outlineSuggestions[selectedOutline]);
+                    }
+                  }}
+                  disabled={status === 'submitted' || selectedOutline === null}
                 >
                   ✍️ この構成で書く
                 </button>
