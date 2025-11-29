@@ -19,6 +19,8 @@ type OutlineSuggestion = {
 
 type TaskKey = 'warmup' | 'conversation' | 'draft' | 'save' | 'survey';
 
+type StepId = 'intro' | 'warmup' | 'chat' | 'outline' | 'draft' | 'complete';
+
 type HistoryArticle = {
   id: string;
   title: string | null;
@@ -82,6 +84,10 @@ function ActionPageContent() {
   const [correctionMode, setCorrectionMode] = useState<boolean>(false);
   const latestAnswerRef = useRef<string>('');
   const conversationRef = useRef<HTMLDivElement | null>(null);
+  
+  // ステップ管理
+  const [currentStep, setCurrentStep] = useState<StepId>('intro');
+  const chatContainerRef = useRef<HTMLDivElement | null>(null);
 
   const refreshHistory = useCallback(async () => {
     if (!userId) {
@@ -245,17 +251,57 @@ function ActionPageContent() {
     };
   }, [userId, initializingUser, refreshHistory]);
 
+  // ステップの初期化と同期
+  useEffect(() => {
+    if (loading || initializingUser || !userId) {
+      return;
+    }
+
+    // 既に記事が保存済みの場合はcompleteステップ
+    if (status === 'submitted' && _submittedAt) {
+      setCurrentStep('complete');
+      return;
+    }
+
+    // 本文が既にある場合はdraftステップ
+    if (body.trim().length > 0 && articleId) {
+      setCurrentStep('draft');
+      return;
+    }
+
+    // アウトラインが生成されている場合はoutlineステップ
+    if (_outlineSuggestions.length > 0) {
+      setCurrentStep('outline');
+      return;
+    }
+
+    // 会話が始まっている場合はchatステップ
+    if (_qaTurns.length > 0 || _currentQuestion) {
+      setCurrentStep('chat');
+      return;
+    }
+
+    // ウォームアップが完了している場合はwarmupステップ（次のステップへ進む準備）
+    if (_warmupComplete) {
+      setCurrentStep('chat');
+      return;
+    }
+
+    // デフォルトはintroステップ
+    setCurrentStep('intro');
+  }, [loading, initializingUser, userId, status, _submittedAt, body, articleId, _outlineSuggestions.length, _qaTurns.length, _currentQuestion, _warmupComplete]);
+
   // 初回の対話を開始
   useEffect(() => {
     if (!_warmupComplete || loading || initializingUser || !userId) {
       return;
     }
 
-    if (_qaTurns.length === 0 && !_currentQuestion) {
+    if (_qaTurns.length === 0 && !_currentQuestion && currentStep === 'chat') {
       fetchNextQuestion([], { force: true });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loading, initializingUser, userId, _warmupComplete]);
+  }, [loading, initializingUser, userId, _warmupComplete, currentStep]);
 
   const wordCount = useMemo(() => {
     return body ? body.replace(/\s+/g, '').length : 0;
@@ -281,6 +327,7 @@ function ActionPageContent() {
     }
     setWarmupComplete(true);
     setMessage(`momo: ${_warmupMood}を選んでくれてありがとう。それでは、momoとの対話を始めましょう。`);
+    setCurrentStep('chat');
   }
 
   async function fetchNextQuestion(previous: QATurn[], options?: { force?: boolean }) {
@@ -458,6 +505,9 @@ function ActionPageContent() {
       
       setMessage('momo: アウトラインを作成しました。これを使って本文を書いてみてください。よければ、もう少し深掘りにお付き合いください。');
       
+      // アウトライン生成後、outlineステップへ
+      setCurrentStep('outline');
+      
       // アウトライン生成後、次の質問を生成（深掘りの質問）
       setPauseAfterOutline(false);
       await fetchNextQuestion(_qaTurns, { force: true });
@@ -488,6 +538,7 @@ function ActionPageContent() {
     setBody(`${intro}${outlineText}\n\nここから本文を書いてみてください。`);
     
     setMessage('momo: アウトラインを適用しました。本文を書いてみてください。');
+    setCurrentStep('draft');
   }
 
   function _handleContinueDialogue() {
@@ -659,6 +710,7 @@ function ActionPageContent() {
         setStatus('submitted');
         setSubmittedAt(new Date().toISOString());
         setMessage('momo: 記事を保存しました。アンケートに回答していただけると嬉しいです。');
+        setCurrentStep('complete');
         // 新しい記事を作成するために状態をリセット
         await createNewArticle();
       } else {
@@ -672,6 +724,383 @@ function ActionPageContent() {
       setSaveStatus('error');
       setMessage(getErrorMessage(err, '保存に失敗しました'));
     }
+  }
+
+  // プログレスバーのステップ情報
+  const stepInfo = [
+    { id: 'intro', label: 'はじめに', icon: '👋' },
+    { id: 'warmup', label: '気分選択', icon: '💭' },
+    { id: 'chat', label: '対話', icon: '💬' },
+    { id: 'outline', label: '構成案', icon: '📝' },
+    { id: 'draft', label: '執筆', icon: '✍️' },
+    { id: 'complete', label: '完了', icon: '✅' },
+  ];
+
+  const currentStepIndex = stepInfo.findIndex(s => s.id === currentStep);
+
+  // プログレスバーコンポーネント
+  function ProgressBar() {
+    if (currentStep === 'intro' || currentStep === 'complete') {
+      return null;
+    }
+
+    return (
+      <div className="step-progress-bar">
+        {stepInfo.map((step, index) => {
+          if (step.id === 'intro' || step.id === 'complete') return null;
+          const isActive = index <= currentStepIndex;
+          const isCurrent = step.id === currentStep;
+          return (
+            <div
+              key={step.id}
+              className={`step-progress-item ${isActive ? 'active' : ''} ${isCurrent ? 'current' : ''}`}
+            >
+              <div className="step-progress-icon">{step.icon}</div>
+              <div className="step-progress-label">{step.label}</div>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Sticky Footerコンポーネント
+  function StickyFooter({ children }: { children: React.ReactNode }) {
+    return (
+      <div className="sticky-footer">
+        <div className="sticky-footer-content">{children}</div>
+      </div>
+    );
+  }
+
+  // Introステップ
+  function renderIntroStep() {
+    return (
+      <div className="step-container step-intro">
+        <div className="step-content">
+          <div className="intro-hero">
+            <div className="intro-icon">🌸</div>
+            <h1 className="intro-title">momo - 記事作成サポート</h1>
+            <p className="intro-description">
+              momoと対話しながら、あなたの体験を記事にしてみませんか？<br />
+              気分や考えをそのまま書いても大丈夫です。
+            </p>
+          </div>
+          <div className="intro-features">
+            <div className="intro-feature">
+              <div className="intro-feature-icon">💭</div>
+              <div className="intro-feature-text">気分を選んでスタート</div>
+            </div>
+            <div className="intro-feature">
+              <div className="intro-feature-icon">💬</div>
+              <div className="intro-feature-text">momoと対話</div>
+            </div>
+            <div className="intro-feature">
+              <div className="intro-feature-icon">📝</div>
+              <div className="intro-feature-text">記事を書く</div>
+            </div>
+          </div>
+        </div>
+        <StickyFooter>
+          <button
+            type="button"
+            className="btn-primary btn-large"
+            onClick={() => setCurrentStep('warmup')}
+          >
+            🌸 はじめる
+          </button>
+        </StickyFooter>
+      </div>
+    );
+  }
+
+  // Warmupステップ
+  function renderWarmupStep() {
+    return (
+      <div className="step-container step-warmup">
+        <div className="step-content">
+          <h2 className="step-title">今日の気分を選んでください</h2>
+          <p className="step-description">
+            記事を書く気分をmomoに伝えてみてください。気分がまだ整理できていない場合は、スキップすることもできます。
+          </p>
+          <div className="mood-buttons-large">
+            {_moodPresets.map((preset) => (
+              <button
+                key={preset.value}
+                type="button"
+                className={`mood-button-large ${_warmupMood === preset.value ? 'active' : ''}`}
+                onClick={() => _setWarmupMood(preset.value)}
+              >
+                <div className="mood-button-icon">
+                  {preset.value === 'いい感じ' && '😊'}
+                  {preset.value === 'まあまあ' && '😐'}
+                  {preset.value === 'ドキドキ' && '😰'}
+                  {preset.value === 'しんどい◆' && '😔'}
+                  {preset.value === 'わからない' && '🤔'}
+                </div>
+                <div className="mood-button-label">{preset.label}</div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <StickyFooter>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => {
+              setWarmupComplete(true);
+              _setWarmupMood('スキップ');
+              setCurrentStep('chat');
+            }}
+          >
+            スキップする
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={_handleWarmupSubmit}
+            disabled={!_warmupMood}
+          >
+            💬 対話をはじめる
+          </button>
+        </StickyFooter>
+      </div>
+    );
+  }
+
+  // チャットスクロールを自動化
+  useEffect(() => {
+    if (currentStep === 'chat' && chatContainerRef.current) {
+      chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+    }
+  }, [_qaTurns, _currentQuestion, _questionLoading, currentStep]);
+
+  // Chatステップ
+  function renderChatStep() {
+    return (
+      <div className="step-container step-chat">
+        <div className="step-content">
+          <div className="chat-container" ref={chatContainerRef}>
+            {_qaTurns.map((turn, index) => (
+              <div key={`turn-${index}`} className="chat-messages">
+                <div className="chat-bubble chat-bubble-ai">
+                  <div className="chat-avatar">momo</div>
+                  <div className="chat-text">{turn.question}</div>
+                </div>
+                <div className="chat-bubble chat-bubble-user">
+                  <div className="chat-text">{turn.answer}</div>
+                </div>
+                {turn.acknowledgment && (
+                  <div className="chat-bubble chat-bubble-ai">
+                    <div className="chat-avatar">momo</div>
+                    <div className="chat-text">{turn.acknowledgment.replace(/^momo:\s*/i, '')}</div>
+                  </div>
+                )}
+              </div>
+            ))}
+            {_questionLoading && (
+              <div className="chat-bubble chat-bubble-ai">
+                <div className="chat-avatar">momo</div>
+                <div className="chat-text chat-typing">
+                  <span className="typing-dot"></span>
+                  <span className="typing-dot"></span>
+                  <span className="typing-dot"></span>
+                </div>
+              </div>
+            )}
+            {_currentQuestion && !_questionLoading && (
+              <div className="chat-bubble chat-bubble-ai">
+                <div className="chat-avatar">momo</div>
+                <div className="chat-text">{_currentQuestion}</div>
+              </div>
+            )}
+            {_showOutlinePrompt && (
+              <div className="chat-bubble chat-bubble-system">
+                <div className="chat-text">
+                  <p>3つの質問に答えていただき、ありがとうございました。</p>
+                  <p>記事の構成案を作ることができます。</p>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+        <StickyFooter>
+          {_showOutlinePrompt ? (
+            <>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={_handleOutlinePromptDecline}
+                disabled={_isGeneratingOutline}
+              >
+                後で考える
+              </button>
+              <button
+                type="button"
+                className="btn-primary"
+                onClick={_handleOutlinePromptAccept}
+                disabled={_isGeneratingOutline}
+              >
+                {_isGeneratingOutline ? '生成中...' : '📝 構成案を作る'}
+              </button>
+            </>
+          ) : (
+            <div className="chat-input-container">
+              <textarea
+                className="chat-input"
+                rows={3}
+                value={_currentAnswer}
+                onChange={(e) => setCurrentAnswer(e.target.value)}
+                placeholder="答えたいことを自由に書いてみてください..."
+                disabled={_questionLoading || status === 'submitted' || !_warmupComplete}
+              />
+              <button
+                type="button"
+                className="btn-primary btn-send"
+                onClick={_handleAnswerSubmit}
+                disabled={_questionLoading || !_currentAnswer.trim() || status === 'submitted' || !_warmupComplete}
+              >
+                <span className="send-icon">✉️</span>
+                送信
+              </button>
+            </div>
+          )}
+        </StickyFooter>
+      </div>
+    );
+  }
+
+  // Outlineステップ
+  function renderOutlineStep() {
+    return (
+      <div className="step-container step-outline">
+        <div className="step-content">
+          <h2 className="step-title">記事の構成案</h2>
+          <p className="step-description">
+            momoが対話の内容から、記事の構成案を作りました。これを使って本文を書いてみてください。
+          </p>
+          {leadSuggestion && (
+            <div className="lead-suggestion-card">
+              <h3>リード文の提案</h3>
+              <p>{leadSuggestion}</p>
+            </div>
+          )}
+          <div className="outline-cards">
+            {_outlineSuggestions.map((outline, index) => (
+              <div key={`outline-${index}`} className="outline-card-item">
+                <h3 className="outline-card-title">{outline.title}</h3>
+                <ul className="outline-card-points">
+                  {outline.points.map((point, pointIndex) => (
+                    <li key={pointIndex}>{point}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+          </div>
+        </div>
+        <StickyFooter>
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={_handleContinueDialogue}
+                disabled={_isGeneratingOutline}
+              >
+                対話を続ける
+              </button>
+              {_outlineSuggestions.length > 0 && (
+                <button
+                  type="button"
+                  className="btn-primary"
+                  onClick={() => _applyOutline(_outlineSuggestions[0])}
+                  disabled={status === 'submitted'}
+                >
+                  ✍️ この構成で書く
+                </button>
+              )}
+        </StickyFooter>
+      </div>
+    );
+  }
+
+  // Draftステップ
+  function renderDraftStep() {
+    return (
+      <div className="step-container step-draft">
+        <div className="step-content">
+          <div className="draft-editor">
+            <input
+              className="draft-title-input"
+              type="text"
+              value={title}
+              placeholder="タイトルを入力..."
+              onChange={(e) => setTitle(e.target.value)}
+              disabled={!_canEdit}
+            />
+            <div className="draft-body-container">
+              <textarea
+                className="draft-body-input"
+                value={body}
+                placeholder="ここから本文を書いてみてください..."
+                onChange={(e) => setBody(e.target.value)}
+                rows={20}
+                disabled={!_canEdit}
+              />
+              <div className="draft-word-count">{wordCount}文字</div>
+            </div>
+          </div>
+        </div>
+        <StickyFooter>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={() => _handleSave(false)}
+            disabled={!_canEdit || _saveStatus === 'saving'}
+          >
+            {_saveStatus === 'saving' ? '保存中...' : '💾 下書き保存'}
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => _handleSave(true)}
+            disabled={!_canEdit || _saveStatus === 'saving'}
+          >
+            ✅ 保存して完了
+          </button>
+        </StickyFooter>
+      </div>
+    );
+  }
+
+  // Completeステップ
+  function renderCompleteStep() {
+    return (
+      <div className="step-container step-complete">
+        <div className="step-content">
+          <div className="complete-hero">
+            <div className="complete-icon">✅</div>
+            <h1 className="complete-title">保存が完了しました</h1>
+            <p className="complete-description">
+              記事をマイページに保存しました。お疲れさまでした！
+            </p>
+            {_submittedAt && (
+              <p className="complete-meta">
+                保存日時: {new Date(_submittedAt).toLocaleString('ja-JP')}
+              </p>
+            )}
+          </div>
+          <div className="complete-actions">
+            <a
+              className="btn-primary"
+              href={_GOOGLE_FORM_URL}
+              target="_blank"
+              rel="noreferrer noopener"
+            >
+              アンケートに回答する
+            </a>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   if (initializingUser) {
@@ -697,413 +1126,37 @@ function ActionPageContent() {
     );
   }
 
+  // ステップに応じたレンダリング
+  function renderCurrentStep() {
+    switch (currentStep) {
+      case 'intro':
+        return renderIntroStep();
+      case 'warmup':
+        return renderWarmupStep();
+      case 'chat':
+        return renderChatStep();
+      case 'outline':
+        return renderOutlineStep();
+      case 'draft':
+        return renderDraftStep();
+      case 'complete':
+        return renderCompleteStep();
+      default:
+        return renderIntroStep();
+    }
+  }
+
   return (
-    <div className="action-wrapper">
-      <header className="action-header">
-        <div>
-          <h1>momo - 記事作成サポート</h1>
-          <p>記事を書いて、momoと対話しながら、あなたの体験を共有してみてください。</p>
-        </div>
-        <a
-          className="action-link"
-          href={_GOOGLE_FORM_URL}
-          target="_blank"
-          rel="noreferrer noopener"
-        >
-          アンケートに回答
-        </a>
-      </header>
-
-      <div className="action-layout">
-        <section className="action-editor">
-          <div className="action-card task-card">
-            <h2>記事の進め方</h2>
-            <ul className="task-list">
-              {_tasks.map((task, index) => {
-                const prevIncomplete = !_manualProgress && _tasks.slice(0, index).some((t) => !t.done);
-                return (
-                  <li key={task.key} className={`${task.done ? 'done' : ''} ${prevIncomplete ? 'locked' : ''}`}>
-                    <span className="task-check">{task.done ? '✓' : prevIncomplete ? '🔒' : '○'}</span>
-                    <span>{task.label}</span>
-                  </li>
-                );
-              })}
-            </ul>
-            {!_manualProgress && (
-              <button
-                type="button"
-                className="task-free-toggle"
-                onClick={() => _setManualProgress(true)}
-              >
-                順番を自由に進める
-              </button>
-            )}
-          </div>
-
-          <div className="action-card warmup-card">
-            <h2>ウォームアップ</h2>
-            <p>今日、記事を書く気分をmomoに伝えてみてください。今日の気分を選んで、momoとの対話を始めましょう。気分がまだ整理できていない場合は、スキップして進むこともできます。</p>
-            <p className="warmup-note">※ 気分は後から変更できます。momoとの対話を通じて、気分を整理していきましょう。</p>
-            <div className="mood-buttons">
-              {_moodPresets.map((preset) => (
-                <button
-                  key={preset.value}
-                  type="button"
-                  className={`mood-button ${_warmupMood === preset.value ? 'active' : ''}`}
-                  onClick={() => _setWarmupMood(preset.value)}
-                  disabled={_warmupComplete}
-                >
-                  {preset.label}
-                </button>
-              ))}
-            </div>
-            <textarea
-              className="textarea"
-              rows={3}
-              placeholder="記事について、気分や考えを書いてみてください"
-              value={_warmupNote}
-              onChange={(e) => _setWarmupNote(e.target.value)}
-              disabled={_warmupComplete}
-            />
-            <p className="warmup-meta-note">※ メモは後から変更できます。気分を選んでから進みましょう。</p>
-            {!_warmupComplete ? (
-              <div className="warmup-actions">
-                <button
-                  type="button"
-                  className="primary warmup-submit"
-                  onClick={_handleWarmupSubmit}
-                >
-                  ウォームアップを完了する
-                </button>
-                <button
-                  type="button"
-                  className="secondary warmup-skip"
-                  onClick={() => {
-                    setWarmupComplete(true);
-                    _setWarmupMood('スキップ');
-                    setMessage('momo: OK、スキップします。それでは、momoとの対話を始めましょう。');
-                  }}
-                >
-                  気分はスキップする
-                </button>
-              </div>
-            ) : (
-              <div className="warmup-complete">完了しました。momoとの対話を始めましょう。気分は後から変更できます。</div>
-            )}
-          </div>
-
-          <div className="action-card conversation-card" ref={conversationRef}>
-            <h2>momoとの対話</h2>
-            <p>質問に答えて、momoと対話しながら、あなたの体験を共有してみてください。気分や考えをそのまま書いても大丈夫です。</p>
-            <p className="qa-note">※ momoの質問に答えて、対話を続けていきましょう。気分が変わったら、対話を通じて修正することもできます。</p>
-
-            {!_warmupComplete && !_manualProgress && (
-              <div className="conversation-lock">
-                <p>ウォームアップを完了してから、対話を始めましょう。</p>
-              </div>
-            )}
-
-            <div className="qa-entries">
-              {_qaTurns.map((turn, index) => (
-                <div key={`${turn.question}-${index}`} className="qa-entry">
-                  <div className="qa-question">Q{index + 1}. {turn.question}</div>
-                  <div className="qa-answer">A. {turn.answer}</div>
-                  {turn.acknowledgment && (
-                    <div className="qa-ack">momo: {turn.acknowledgment.replace(/^momo:\s*/i, '')}</div>
-                  )}
-                </div>
-              ))}
-            </div>
-
-            {_showOutlinePrompt ? (
-              <div className="outline-prompt">
-                <p>3つの質問に答えていただき、ありがとうございました。記事の構成案を作ることができます。</p>
-                <div className="prompt-actions">
-                  <button
-                    type="button"
-                    className="primary"
-                    onClick={_handleOutlinePromptAccept}
-                    disabled={_isGeneratingOutline}
-                  >
-                    {_isGeneratingOutline ? '生成中...' : 'はい、お願いします'}
-                  </button>
-                  <button
-                    type="button"
-                    className="secondary"
-                    onClick={_handleOutlinePromptDecline}
-                    disabled={_isGeneratingOutline}
-                  >
-                    後で考える
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <div className="qa-input">
-                <div className="qa-current-question">
-                  {_questionLoading
-                    ? 'momoが質問を考えています...'
-                    : _warmupComplete
-                      ? (_currentQuestion || '')
-                      : 'まず、ウォームアップを完了してから対話を始めましょう。'}
-                </div>
-                <textarea
-                  className="textarea"
-                  rows={4}
-                  value={_currentAnswer}
-                  onChange={(e) => setCurrentAnswer(e.target.value)}
-                  placeholder="答えたいことを自由に書いてみてください。気分や考えをそのまま書いても大丈夫です。"
-                  disabled={_questionLoading || status === 'submitted' || !_warmupComplete}
-                />
-                <div className="qa-actions">
-                  <button
-                    type="button"
-                    className="primary send-button"
-                    onClick={_handleAnswerSubmit}
-                    disabled={_questionLoading || !_currentAnswer.trim() || status === 'submitted' || !_warmupComplete}
-                  >
-                    <span className="send-icon" aria-hidden>📤</span>
-                    <span>送信</span>
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
-
-          {_outlineSuggestions.length > 0 && (
-            <div className="action-card outline-card">
-              <h2>生成されたアウトライン</h2>
-              <p>momoが対話の内容から、記事の構成案を作りました。これを使って本文を書いてみてください。</p>
-              
-              {leadSuggestion && (
-                <div className="lead-suggestion">
-                  <h3>リード文の提案</h3>
-                  <p>{leadSuggestion}</p>
-                </div>
-              )}
-              
-              <div className="outline-list">
-                {_outlineSuggestions.map((outline, index) => (
-                  <div key={`${outline.title}-${index}`} className="outline-item">
-                    <div className="outline-title">{outline.title}</div>
-                    <ul>
-                      {outline.points.map((point, pointIndex) => (
-                        <li key={pointIndex}>{point}</li>
-                      ))}
-                    </ul>
-                    <button
-                      type="button"
-                      className="secondary"
-                      onClick={() => _applyOutline(outline)}
-                      disabled={status === 'submitted'}
-                    >
-                      このアウトラインを使う
-                    </button>
-                  </div>
-                ))}
-              </div>
-              
-              <p className="outline-note">※ このアウトラインを使って本文を書いてみてください。momoとの対話を通じて、さらに詳しく話すこともできます。</p>
-              <button
-                type="button"
-                className="secondary"
-                onClick={_handleContinueDialogue}
-                disabled={_isGeneratingOutline}
-              >
-                momoと対話を続ける
-              </button>
-            </div>
-          )}
-
-          {loading ? (
-            <div className="action-card loading">
-              <div className="spinner" />
-              <p>記事を読み込んでいます...</p>
-            </div>
-          ) : (
-            <>
-              <div className="action-card">
-                <label className="field-label" htmlFor="article-title">タイトル</label>
-                <input
-                  id="article-title"
-                  className="text-input"
-                  type="text"
-                  value={title}
-                  placeholder="対話の内容から、タイトルを考えてみてください"
-                  onChange={(e) => setTitle(e.target.value)}
-                  disabled={!_canEdit}
-                />
-              </div>
-
-              <div className="action-card">
-                <div className="field-label-row">
-                  <label className="field-label" htmlFor="article-body">本文</label>
-                  <span className="word-count">{wordCount}文字</span>
-                </div>
-                {!_conversationReady && !articleId && (
-                  <div className="conversation-warning">
-                    <p>まず、momoとの対話を3回以上進めてから、本文を書くことができます。</p>
-                  </div>
-                )}
-                <textarea
-                  id="article-body"
-                  className="textarea"
-                  value={body}
-                  placeholder="記事について、気分や考えを自由に書いてみてください"
-                  onChange={(e) => setBody(e.target.value)}
-                  rows={16}
-                  disabled={!_canEdit}
-                />
-                <p className="field-hint">※ 300〜500文字程度を目安に書いてみてください。</p>
-              </div>
-
-              <div className="action-card memo-card">
-                <h2>メモ</h2>
-                <p>書いた内容をメモに残しておくと、後から見返すことができます。メモは記事には含まれません。</p>
-                <textarea
-                  className="textarea"
-                  rows={6}
-                  value={_memoText}
-                  onChange={(e) => _setMemoText(e.target.value)}
-                  placeholder="気分や考えをメモに残しておきたいことを書いてみてください"
-                />
-              </div>
-
-              <div className="action-actions">
-                <button
-                  type="button"
-                  className="secondary"
-                  onClick={() => _handleSave(false)}
-                  disabled={!_canEdit || _saveStatus === 'saving'}
-                >
-                  {_saveStatus === 'saving' ? '保存中...' : '下書きとして保存する'}
-                </button>
-
-                <button
-                  type="button"
-                  className="primary"
-                  onClick={() => _handleSave(true)}
-                  disabled={!_canEdit || _saveStatus === 'saving'}
-                >
-                  マイページに保存する
-                </button>
-
-                {status === 'submitted' && _submittedAt && (
-                  <div className="action-card success">
-                    <h2>保存が完了しました</h2>
-                    <p>保存日時: {new Date(_submittedAt).toLocaleString('ja-JP')}</p>
-                    <p className="action-hint">アンケートに回答していただけると嬉しいです。</p>
-                    <a
-                      className="action-link"
-                      href={_GOOGLE_FORM_URL}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                    >
-                      アンケートに回答する
-                    </a>
-                  </div>
-                )}
-              </div>
-            </>
-          )}
-        </section>
-
-        <aside className="action-sidebar">
-          <div className="action-card info">
-            <h2>アンケートについて</h2>
-            <p>記事を書いて、Google フォームで記事の体験を共有してください。momo の記事作成サポートが向上します。</p>
-            <a
-              className="action-link"
-              href={_GOOGLE_FORM_URL}
-              target="_blank"
-              rel="noreferrer noopener"
-            >
-              ペンを持つ効果 アンケート
-            </a>
-          </div>
-
-          <div className="action-card info">
-            <h2>記事作成のコツ</h2>
-            <ul className="hint-list">
-              <li>気分が悪いときは、ウォームアップをスキップして、対話から始めることもできます。</li>
-              <li>気分が変わったら、momoとの対話を通じて、気分を整理していきましょう。</li>
-              <li>下書きとして保存して、いつでも編集できます。マイページに保存して、アンケートに回答してください。</li>
-            </ul>
-          </div>
-
-          <div className="action-card history-card">
-            <h2>過去の記事</h2>
-            {_historyLoading && <p>momoが読み込んでいます...</p>}
-            {!_historyLoading && _history.length === 0 && (
-              <p>まだ保存した記事がありません。momoとの対話を通じて、記事を作成してみてください。</p>
-            )}
-            {!_historyLoading && _history.length > 0 && (
-              <div className="history-list">
-                {_history.map((article) => (
-                  <div key={article.id} className="history-item">
-                    <div className="history-header">
-                      <div>
-                        <div className="history-title">{article.title || 'タイトルなし'}</div>
-                        <div className="history-meta">
-                          <span>{article.status === 'submitted' ? 'マイページに保存' : '下書き'}</span>
-                          <span>{new Date(article.updated_at).toLocaleDateString('ja-JP', {
-                            month: 'short',
-                            day: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}</span>
-                        </div>
-                      </div>
-                      {article.word_count !== null && (
-                        <div className="history-count">{article.word_count}文字</div>
-                      )}
-                    </div>
-                    <div className="history-actions">
-                      <button
-                        type="button"
-                        className="secondary"
-                        onClick={() => loadArticleForEdit(article)}
-                      >
-                        この記事を編集する
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary"
-                        onClick={() => _setPreviewArticle(article)}
-                      >
-                        本文を確認
-                      </button>
-                      <button
-                        type="button"
-                        className="secondary"
-                        onClick={() => copyArticleBody(article)}
-                      >
-                        本文をコピー
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            <button
-              type="button"
-              className="secondary"
-              style={{ marginTop: '12px', width: '100%' }}
-              onClick={() => window.open('/me', '_blank')}
-            >
-              マイページに保存した記事を確認する
-            </button>
-          </div>
-        </aside>
-      </div>
-
+    <div className="action-wrapper wizard-mode">
+      <ProgressBar />
+      {renderCurrentStep()}
       {_message && (
-        <div className="action-message-container">
-          <div className={`action-message ${_saveStatus === 'error' ? 'error' : ''}`}>
+        <div className="toast-message">
+          <div className={`toast-content ${_saveStatus === 'error' ? 'error' : ''}`}>
             {_message}
           </div>
         </div>
       )}
-
       {_previewArticle && (
         <div className="preview-overlay" onClick={() => _setPreviewArticle(null)}>
           <div className="preview-card" onClick={(e) => e.stopPropagation()}>
@@ -1135,6 +1188,7 @@ function ActionPageContent() {
     </div>
   );
 }
+
 export default function ActionPage() {
   return (
     <Suspense
