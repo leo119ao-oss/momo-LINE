@@ -45,6 +45,84 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback;
 }
 
+// StickyFooterコンポーネント（ファイルトップレベルで定義）
+function StickyFooter({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="sticky-footer">
+      <div className="sticky-footer-content">{children}</div>
+    </div>
+  );
+}
+
+// チャット入力欄コンポーネント（ファイルトップレベルで定義して再生成を防ぐ）
+const ChatInput = memo(function ChatInput({
+  value,
+  onChange,
+  onSubmit,
+  disabled,
+  questionLoading,
+  showOutlinePrompt,
+  onOutlinePromptDecline,
+  onOutlinePromptAccept,
+  isGeneratingOutline,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  onSubmit: () => void;
+  disabled: boolean;
+  questionLoading: boolean;
+  showOutlinePrompt: boolean;
+  onOutlinePromptDecline: () => void;
+  onOutlinePromptAccept: () => void;
+  isGeneratingOutline: boolean;
+}) {
+  return (
+    <StickyFooter>
+      {showOutlinePrompt ? (
+        <>
+          <button
+            type="button"
+            className="btn-secondary"
+            onClick={onOutlinePromptDecline}
+            disabled={isGeneratingOutline}
+          >
+            後で考える
+          </button>
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={onOutlinePromptAccept}
+            disabled={isGeneratingOutline}
+          >
+            {isGeneratingOutline ? '生成中...' : '📝 構成案を作る'}
+          </button>
+        </>
+      ) : (
+        <div className="chat-input-container">
+          <textarea
+            key="chat-input-textarea"
+            className="chat-input"
+            rows={4}
+            value={value}
+            onChange={(e) => onChange(e.target.value)}
+            placeholder="答えたいことを自由に書いてみてください..."
+            disabled={disabled || questionLoading}
+          />
+          <button
+            type="button"
+            className="btn-primary btn-send"
+            onClick={onSubmit}
+            disabled={questionLoading || !value.trim() || disabled}
+          >
+            <span className="send-icon">✉️</span>
+            送信
+          </button>
+        </div>
+      )}
+    </StickyFooter>
+  );
+});
+
 function ActionPageContent() {
   const searchParams = useSearchParams();
   const queryUserId = searchParams.get('user_id') || searchParams.get('uid') || '';
@@ -877,74 +955,6 @@ function ActionPageContent() {
     }
   }, [_qaTurns, _currentQuestion, _questionLoading, currentStep]);
 
-  // チャット入力欄コンポーネント（メモ化して再レンダリングを防ぐ）
-  const ChatInput = memo(function ChatInput({
-    value,
-    onChange,
-    onSubmit,
-    disabled,
-    questionLoading,
-    showOutlinePrompt,
-    onOutlinePromptDecline,
-    onOutlinePromptAccept,
-    isGeneratingOutline,
-  }: {
-    value: string;
-    onChange: (value: string) => void;
-    onSubmit: () => void;
-    disabled: boolean;
-    questionLoading: boolean;
-    showOutlinePrompt: boolean;
-    onOutlinePromptDecline: () => void;
-    onOutlinePromptAccept: () => void;
-    isGeneratingOutline: boolean;
-  }) {
-    return (
-      <StickyFooter>
-        {showOutlinePrompt ? (
-          <>
-            <button
-              type="button"
-              className="btn-secondary"
-              onClick={onOutlinePromptDecline}
-              disabled={isGeneratingOutline}
-            >
-              後で考える
-            </button>
-            <button
-              type="button"
-              className="btn-primary"
-              onClick={onOutlinePromptAccept}
-              disabled={isGeneratingOutline}
-            >
-              {isGeneratingOutline ? '生成中...' : '📝 構成案を作る'}
-            </button>
-          </>
-        ) : (
-          <div className="chat-input-container">
-            <textarea
-              key="chat-input-textarea"
-              className="chat-input"
-              rows={4}
-              value={value}
-              onChange={(e) => onChange(e.target.value)}
-              placeholder="答えたいことを自由に書いてみてください..."
-              disabled={disabled || questionLoading}
-            />
-            <button
-              type="button"
-              className="btn-primary btn-send"
-              onClick={onSubmit}
-              disabled={questionLoading || !value.trim() || disabled}
-            >
-              <span className="send-icon">✉️</span>
-              送信
-            </button>
-          </div>
-        )}
-      </StickyFooter>
-    );
-  });
 
   // Chatステップ（_currentAnswerを依存配列から削除）
   const renderChatStep = useCallback(() => {
