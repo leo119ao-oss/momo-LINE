@@ -946,7 +946,7 @@ function ActionPageContent() {
     );
   });
 
-  // Chatステップ
+  // Chatステップ（_currentAnswerを依存配列から削除）
   const renderChatStep = useCallback(() => {
     return (
       <div className="step-container step-chat">
@@ -995,17 +995,6 @@ function ActionPageContent() {
             )}
           </div>
         </div>
-        <ChatInput
-          value={_currentAnswer}
-          onChange={setCurrentAnswer}
-          onSubmit={_handleAnswerSubmit}
-          disabled={status === 'submitted' || !_warmupComplete}
-          questionLoading={_questionLoading}
-          showOutlinePrompt={_showOutlinePrompt}
-          onOutlinePromptDecline={_handleOutlinePromptDecline}
-          onOutlinePromptAccept={_handleOutlinePromptAccept}
-          isGeneratingOutline={_isGeneratingOutline}
-        />
       </div>
     );
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1014,13 +1003,7 @@ function ActionPageContent() {
     _currentQuestion,
     _questionLoading,
     _showOutlinePrompt,
-    _currentAnswer,
-    _isGeneratingOutline,
-    status,
-    _warmupComplete,
-    _handleAnswerSubmit,
-    _handleOutlinePromptDecline,
-    _handleOutlinePromptAccept,
+    // _currentAnswerを依存配列から削除
   ]);
 
   // Outlineステップ
@@ -1195,6 +1178,20 @@ function ActionPageContent() {
     <div className="action-wrapper wizard-mode">
       <ProgressBar />
       {renderCurrentStep()}
+      {/* ChatInputをrenderChatStepの外に移動して、_currentAnswer変更時に再マウントされないようにする */}
+      {currentStep === 'chat' && (
+        <ChatInput
+          value={_currentAnswer}
+          onChange={setCurrentAnswer}
+          onSubmit={_handleAnswerSubmit}
+          disabled={status === 'submitted' || !_warmupComplete}
+          questionLoading={_questionLoading}
+          showOutlinePrompt={_showOutlinePrompt}
+          onOutlinePromptDecline={_handleOutlinePromptDecline}
+          onOutlinePromptAccept={_handleOutlinePromptAccept}
+          isGeneratingOutline={_isGeneratingOutline}
+        />
+      )}
       {_message && currentStep !== 'chat' && (
         <div className="toast-message">
           <div className={`toast-content ${_saveStatus === 'error' ? 'error' : ''}`}>
