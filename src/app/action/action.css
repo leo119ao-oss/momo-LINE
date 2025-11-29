@@ -30,7 +30,7 @@ body {
   min-height: 100vh;
   background: var(--forest-cream);
   padding: 0;
-  padding-bottom: 160px !important; /* フッター用の余白を強制的に確保 */
+  padding-bottom: 180px !important; /* フッターの高さ分だけ底上げ */
   display: flex;
   flex-direction: column;
   gap: 0;
@@ -843,7 +843,7 @@ body {
 /* ウィザードモードの基本設定 */
 .action-wrapper.wizard-mode {
   padding: 0;
-  padding-bottom: 160px !important; /* フッター用の余白を強制的に確保 */
+  padding-bottom: 180px !important; /* フッターの高さ分だけ底上げ */
   background: var(--forest-cream);
   min-height: 100vh;
   display: flex;
@@ -1314,38 +1314,36 @@ body {
   }
 }
 
+/* 入力欄とボタンを囲むコンテナ */
 .chat-input-container {
-  display: flex;
-  flex-direction: row;
-  gap: 12px;
-  align-items: flex-end;
-  padding: 16px 20px;
-  /* チャット入力欄の背景も微調整（白にして際立たせる） */
+  display: flex;        /* 横並び */
+  align-items: flex-end; /* 下揃え（文字数が増えてもボタンは下に固定） */
+  gap: 10px;            /* 入力欄とボタンの間隔 */
+  width: 100%;          /* ★これがないと縮こまる */
   background: #ffffff;
-  border-top: 2px solid var(--forest-shadow-soft);
-  box-shadow: 0 -4px 12px var(--forest-shadow-soft);
-  width: 100%;
-  box-sizing: border-box;
-  z-index: 1001; /* フッター背景よりさらに上 */
+  border: 2px solid #F0EBE6;
+  border-radius: 28px;
+  padding: 8px;
+  box-sizing: border-box; /* パディングを含めて幅を計算 */
+  box-shadow: 0 4px 12px rgba(139, 126, 116, 0.08);
 }
 
+/* テキストエリア（可変幅） */
 .chat-input {
-  flex: 1;
-  min-width: 0;
-  padding: 14px 18px;
-  border-radius: 24px;
-  border: 2px solid var(--forest-shadow-soft);
-  font-size: 16px;
-  resize: vertical;
-  min-height: 60px;
-  max-height: 200px;
+  flex: 1 1 auto; /* ★重要: 伸び縮み自由に */
+  width: 100%;    /* 幅を確保 */
+  min-width: 0;   /* ★最重要: Flexアイテムが中身に合わせて潰れるのを防ぐ魔法 */
+  border: none;
+  background: transparent;
+  padding: 8px 4px 8px 12px;
+  font-size: 16px; /* ズーム防止 */
+  line-height: 1.5;
+  color: #8B7E74;
   font-family: 'Zen Maru Gothic', sans-serif;
-  color: var(--forest-beige-dark);
-  background: var(--forest-white);
-  transition: border-color 0.2s ease;
-  line-height: 1.6;
+  resize: none;
+  outline: none;
+  max-height: 120px;
   box-sizing: border-box;
-  width: 100%;
 }
 
 .chat-input:focus {
@@ -1599,32 +1597,28 @@ body {
   margin-top: 40px;
 }
 
-/* Sticky Footer */
+/* =========================================
+   鉄壁のフッターレイアウト修正 (Forest Style)
+   ========================================= */
+
+/* フッターの土台（位置固定エリア） */
 .sticky-footer {
   position: fixed;
   bottom: 0;
   left: 0;
   right: 0;
-  /* 半透明をやめて、背景色で塗りつぶす */
-  background: var(--forest-cream);
-  /* 本文との境界線を引いて「別物」感を出す */
-  border-top: 2px solid #EBE6E0;
-  /* ぼかしエフェクトはオフ */
-  backdrop-filter: none;
-  /* iPhoneの下部バー対策 */
-  padding: 12px 16px;
-  padding-bottom: max(12px, env(safe-area-inset-bottom));
   z-index: 1000;
-  /* 上に影を落として、レイヤーが上にあることを強調 */
-  box-shadow: 0 -4px 12px rgba(139, 126, 116, 0.05);
+  background: #FAF8F5; /* 不透明な背景色 */
+  border-top: 2px solid #EBE6E0;
+  padding: 12px 16px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom)); /* iPhoneの下部バー対応 */
 }
 
+/* コンテンツ幅の制御（ここが重要！） */
 .sticky-footer-content {
-  max-width: 640px;
-  margin: 0 auto;
-  display: flex;
-  gap: 16px;
-  justify-content: flex-end;
+  max-width: 600px; /* PCで見ても広がりすぎないように */
+  margin: 0 auto;   /* 中央寄せ */
+  width: 100%;      /* 親要素いっぱいに広げる */
 }
 
 /* ボタンスタイル - Forest Theme */
@@ -1695,11 +1689,34 @@ body {
   border-radius: 24px;
 }
 
+/* 送信ボタン（固定幅） */
 .btn-send {
-  padding: 14px 24px;
-  border-radius: 28px;
-  background: var(--forest-mint);
-  border-bottom-color: #6BB89E;
+  flex: 0 0 44px; /* ★重要: 44pxから絶対に伸び縮みさせない */
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: #8CDCBE;
+  border-bottom: 3px solid #6BBFA0;
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  padding: 0;
+  margin: 0;
+  transition: transform 0.1s;
+}
+
+.btn-send:active {
+  transform: translateY(2px);
+  border-bottom-width: 0;
+}
+
+.btn-send:disabled {
+  background: #E5E5E5;
+  border-bottom-color: #D4D4D4;
+  cursor: not-allowed;
 }
 
 .send-icon {
