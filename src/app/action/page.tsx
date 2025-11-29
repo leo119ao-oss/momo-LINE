@@ -816,10 +816,7 @@ function ActionPageContent() {
         setShowOutlinePrompt(false);
         setSelectedOutline(null);
         setCurrentStep('complete');
-        // 新しい記事を作成するために状態をリセット（非同期で実行）
-        createNewArticle().catch((err) => {
-          console.error('[ACTION] Failed to create new article after save:', err);
-        });
+        // 注意: createNewArticle()は呼び出さない（Complete画面で記事をダウンロードできるようにするため）
       } else {
         setSaveStatus('saved');
         setMessage('momo: 下書きを保存しました。いつでも編集できます。');
@@ -1237,6 +1234,22 @@ function ActionPageContent() {
             >
               <span>アンケートに回答する</span>
             </a>
+            <button
+              type="button"
+              className="forest-btn forest-btn-secondary"
+              onClick={async () => {
+                // 新しい記事を作成するために状態をリセット
+                await createNewArticle();
+                // introステップへ遷移
+                setCurrentStep('intro');
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"></path>
+                <polyline points="9 22 9 12 15 12 15 22"></polyline>
+              </svg>
+              <span>最初に戻る</span>
+            </button>
           </div>
         </div>
       </div>
