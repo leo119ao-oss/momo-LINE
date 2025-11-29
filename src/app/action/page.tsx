@@ -350,7 +350,7 @@ function ActionPageContent() {
       return;
     }
 
-    // 既に記事が保存済みの場合はcompleteステップ
+    // 既に記事が保存済みの場合はcompleteステップ（最優先）
     if (status === 'submitted' && _submittedAt) {
       setCurrentStep('complete');
       return;
@@ -362,9 +362,12 @@ function ActionPageContent() {
       return;
     }
 
-    // アウトラインが生成されている場合はoutlineステップ
+    // アウトラインが生成されている場合はoutlineステップ（ただし、completeステップ中は遷移しない）
     if (_outlineSuggestions.length > 0) {
-      setCurrentStep('outline');
+      // completeステップ中は遷移しない（保存完了後はcomplete画面を維持）
+      if (currentStep !== 'complete') {
+        setCurrentStep('outline');
+      }
       return;
     }
 
@@ -762,6 +765,9 @@ function ActionPageContent() {
         _setWarmupMood('');
         _setWarmupNote('');
         setSaveStatus('idle');
+        setOutlineSuggestions([]); // アウトラインもクリア
+        setShowOutlinePrompt(false);
+        setSelectedOutline(null);
         setMessage('momo: 新しい記事を作成しました。momoとの対話を始めましょう。');
       }
     } catch (err) {
@@ -805,9 +811,15 @@ function ActionPageContent() {
         setStatus('submitted');
         setSubmittedAt(new Date().toISOString());
         setMessage('momo: 記事を保存しました。アンケートに回答していただけると嬉しいです。');
+        // アウトラインをクリアしてからcompleteステップに遷移（useEffectでoutlineに戻されないようにする）
+        setOutlineSuggestions([]);
+        setShowOutlinePrompt(false);
+        setSelectedOutline(null);
         setCurrentStep('complete');
-        // 新しい記事を作成するために状態をリセット
-        await createNewArticle();
+        // 新しい記事を作成するために状態をリセット（非同期で実行）
+        createNewArticle().catch((err) => {
+          console.error('[ACTION] Failed to create new article after save:', err);
+        });
       } else {
         setSaveStatus('saved');
         setMessage('momo: 下書きを保存しました。いつでも編集できます。');

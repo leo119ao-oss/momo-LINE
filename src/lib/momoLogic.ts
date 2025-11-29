@@ -412,10 +412,10 @@ async function handleLiffQA(
     
     const completion = await openai.chat.completions.create({
       model: 'gpt-4.1-mini',
-      messages: [
+          messages: [
         { role: 'system', content: enhancedSystemPrompt },
         ...trimmedHistory,
-        { role: 'user', content: text }
+            { role: 'user', content: text }
       ],
       temperature: 0.7,
       max_tokens: 500
