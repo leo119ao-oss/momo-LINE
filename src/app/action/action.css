@@ -914,6 +914,12 @@ body {
   border-bottom-color: #6BB89E;
 }
 
+.forest-btn-primary {
+  background: var(--forest-salmon);
+  border-bottom-color: #E87E7E;
+  color: var(--forest-white);
+}
+
 /* プログレスバー - Forest Theme */
 .step-progress-bar {
   display: flex;
@@ -1021,87 +1027,116 @@ body {
   padding-bottom: 200px;
 }
 
-/* Introステップ */
+/* Introステップ - momoからの招待状 */
 .step-intro {
   background: var(--forest-cream);
   background-image: radial-gradient(circle, var(--forest-shadow-soft) 1px, transparent 1px);
   background-size: 24px 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: calc(100vh - 80px);
 }
 
-.step-intro .intro-hero {
+.intro-card {
+  background: var(--forest-white);
+  border-radius: 32px;
+  padding: 48px 32px;
+  max-width: 480px;
+  width: 100%;
+  box-shadow: 0 8px 24px rgba(139, 126, 116, 0.12);
   text-align: center;
-  padding: 80px 20px 60px;
+  position: relative;
+  animation: fadeInForest 0.6s ease;
+}
+
+.intro-icon-wrapper {
+  position: relative;
+  display: inline-block;
+  margin-bottom: 24px;
 }
 
 .intro-icon {
-  font-size: 80px;
-  margin-bottom: 32px;
+  font-size: 72px;
+  display: block;
   filter: drop-shadow(0 4px 8px var(--forest-shadow-soft));
   animation: float 3s ease-in-out infinite;
 }
 
+.intro-leaf {
+  position: absolute;
+  top: -8px;
+  right: -12px;
+  font-size: 32px;
+  animation: float 2.5s ease-in-out infinite;
+  animation-delay: 0.5s;
+}
+
 @keyframes float {
   0%, 100% {
-    transform: translateY(0);
+    transform: translateY(0) rotate(0deg);
   }
   50% {
-    transform: translateY(-8px);
+    transform: translateY(-8px) rotate(5deg);
   }
 }
 
 .intro-title {
-  font-size: 32px;
+  font-size: 42px;
   font-weight: 700;
   color: var(--forest-beige-dark);
-  margin: 0 0 20px;
+  margin: 0 0 8px;
   letter-spacing: 0.5px;
+  line-height: 1.2;
 }
 
-.intro-description {
+.intro-subtitle {
+  font-size: 20px;
+  font-weight: 500;
+  color: var(--forest-beige);
+  display: block;
+  margin-top: 4px;
+}
+
+.intro-divider {
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(to right, transparent, var(--forest-mint), transparent);
+  margin: 24px auto;
+  border-radius: 1px;
+}
+
+.intro-message {
   font-size: 18px;
   color: var(--forest-beige);
-  line-height: 1.8;
-  margin: 0;
-  max-width: 500px;
-  margin-left: auto;
-  margin-right: auto;
+  line-height: 1.9;
+  margin: 0 0 32px;
+  font-weight: 500;
 }
 
-.intro-features {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 24px;
-  margin-top: 60px;
-  max-width: 600px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.intro-feature {
+.intro-start-btn {
+  width: 100%;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  padding: 20px;
-  background: var(--forest-white);
+  justify-content: center;
+  gap: 8px;
+  padding: 18px 32px;
+  font-size: 18px;
   border-radius: 24px;
-  box-shadow: 0 4px 12px var(--forest-shadow-soft);
+  transition: all 0.3s ease;
+}
+
+.intro-start-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 158, 158, 0.3);
+}
+
+.intro-start-btn svg {
   transition: transform 0.3s ease;
 }
 
-.intro-feature:hover {
-  transform: translateY(-4px);
-}
-
-.intro-feature-icon {
-  font-size: 40px;
-}
-
-.intro-feature-text {
-  font-size: 14px;
-  color: var(--forest-beige);
-  text-align: center;
-  font-weight: 500;
+.intro-start-btn:hover svg {
+  transform: translateX(4px);
 }
 
 /* Warmupステップ */

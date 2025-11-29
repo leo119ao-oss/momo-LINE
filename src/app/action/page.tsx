@@ -113,9 +113,23 @@ const ChatInput = memo(function ChatInput({
             className="btn-primary btn-send"
             onClick={onSubmit}
             disabled={questionLoading || !value.trim() || disabled}
+            aria-label="送信"
           >
-            <span className="send-icon">✉️</span>
-            送信
+            {/* 紙飛行機のSVGアイコン */}
+            <svg 
+              width="22" 
+              height="22" 
+              viewBox="0 0 24 24" 
+              fill="none" 
+              stroke="currentColor" 
+              strokeWidth="2.5" 
+              strokeLinecap="round" 
+              strokeLinejoin="round"
+              style={{ transform: 'translateX(-1px) rotate(-10deg)' }}
+            >
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
           </button>
         </div>
       )}
@@ -853,43 +867,44 @@ function ActionPageContent() {
     );
   }
 
-  // Introステップ
+  // Introステップ（momoからの招待状）
   function renderIntroStep() {
     return (
       <div className="step-container step-intro">
         <div className="step-content">
-          <div className="intro-hero">
-            <div className="intro-icon">🌸</div>
-            <h1 className="intro-title">momo - 記事作成サポート</h1>
-            <p className="intro-description">
-              momoと対話しながら、あなたの体験を記事にしてみませんか？<br />
-              気分や考えをそのまま書いても大丈夫です。
+          <div className="intro-card">
+            <div className="intro-icon-wrapper">
+              <span className="intro-icon">🍑</span>
+              <div className="intro-leaf">🍃</div>
+            </div>
+            
+            <h1 className="intro-title">
+              momo<br />
+              <span className="intro-subtitle">くらしのノート</span>
+            </h1>
+            
+            <div className="intro-divider"></div>
+            
+            <p className="intro-message">
+              こんにちは。<br />
+              今日あった出来事や気持ちを、<br />
+              少しだけお話ししませんか？
             </p>
-          </div>
-          <div className="intro-features">
-            <div className="intro-feature">
-              <div className="intro-feature-icon">💭</div>
-              <div className="intro-feature-text">気分を選んでスタート</div>
-            </div>
-            <div className="intro-feature">
-              <div className="intro-feature-icon">💬</div>
-              <div className="intro-feature-text">momoと対話</div>
-            </div>
-            <div className="intro-feature">
-              <div className="intro-feature-icon">📝</div>
-              <div className="intro-feature-text">記事を書く</div>
-            </div>
+
+            <button
+              type="button"
+              className="forest-btn forest-btn-primary intro-start-btn"
+              onClick={() => setCurrentStep('warmup')}
+            >
+              <span>お話しする</span>
+              {/* 右矢印アイコン */}
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M5 12h14" />
+                <path d="m12 5 7 7-7 7" />
+              </svg>
+            </button>
           </div>
         </div>
-        <StickyFooter>
-          <button
-            type="button"
-            className="btn-primary btn-large"
-            onClick={() => setCurrentStep('warmup')}
-          >
-            🌸 はじめる
-          </button>
-        </StickyFooter>
       </div>
     );
   }
