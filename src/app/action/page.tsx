@@ -19,7 +19,7 @@ type OutlineSuggestion = {
 
 type TaskKey = 'warmup' | 'conversation' | 'draft' | 'save' | 'survey';
 
-type StepId = 'intro' | 'warmup' | 'chat' | 'outline' | 'draft' | 'complete';
+type StepId = 'intro' | 'warmup' | 'chat' | 'outline' | 'draft' | 'complete' | 'history';
 
 type HistoryArticle = {
   id: string;
@@ -724,6 +724,9 @@ function ActionPageContent() {
           setSaveStatus('idle');
           setMessage('momo: 記事を読み込みました。編集できます。');
           
+          // draftステップに遷移
+          setCurrentStep('draft');
+          
           // ページの上部にスクロール
           window.scrollTo({ top: 0, behavior: 'smooth' });
         } else {
@@ -912,6 +915,20 @@ function ActionPageContent() {
                 <path d="M5 12h14" />
                 <path d="m12 5 7 7-7 7" />
               </svg>
+            </button>
+            <button
+              type="button"
+              className="forest-btn forest-btn-secondary intro-history-btn"
+              onClick={async () => {
+                await refreshHistory();
+                setCurrentStep('history');
+              }}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"></path>
+                <path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"></path>
+              </svg>
+              <span>過去の記事を読む</span>
             </button>
           </div>
         </div>
@@ -1279,6 +1296,85 @@ function ActionPageContent() {
     );
   }
 
+  // Historyステップ（過去の記事一覧）
+  function renderHistoryStep() {
+    return (
+      <div className="step-container step-history">
+        <div className="step-content">
+          <div className="history-header">
+            <button
+              type="button"
+              className="forest-btn forest-btn-secondary history-back-btn"
+              onClick={() => setCurrentStep('intro')}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M19 12H5"></path>
+                <path d="m12 19-7-7 7-7"></path>
+              </svg>
+              <span>スタート画面に戻る</span>
+            </button>
+            <h2 className="step-title">過去の記事</h2>
+            <p className="step-description">
+              これまでに書いた記事を確認・編集できます。
+            </p>
+          </div>
+          {_historyLoading ? (
+            <div className="history-loading">
+              <div className="spinner" />
+              <p>記事を読み込んでいます...</p>
+            </div>
+          ) : _history.length === 0 ? (
+            <div className="history-empty">
+              <div className="history-empty-icon">📝</div>
+              <p>まだ記事がありません。</p>
+              <p>新しい記事を作成してみましょう！</p>
+            </div>
+          ) : (
+            <div className="history-list">
+              {_history.map((article) => (
+                <div
+                  key={article.id}
+                  className="history-item"
+                  onClick={() => loadArticleForEdit(article)}
+                >
+                  <div className="history-item-content">
+                    <h3 className="history-item-title">
+                      {article.title || '無題'}
+                    </h3>
+                    <div className="history-item-meta">
+                      {article.created_at && (
+                        <span className="history-item-date">
+                          {new Date(article.created_at).toLocaleString('ja-JP', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric',
+                            hour: '2-digit',
+                            minute: '2-digit',
+                          })}
+                        </span>
+                      )}
+                      {article.word_count && (
+                        <span className="history-item-word-count">
+                          {article.word_count}文字
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  <div className="history-item-arrow">
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M5 12h14"></path>
+                      <path d="m12 5 7 7-7 7"></path>
+                    </svg>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   // ステップに応じたレンダリング
   function renderCurrentStep() {
     switch (currentStep) {
@@ -1294,6 +1390,8 @@ function ActionPageContent() {
         return renderDraftStep();
       case 'complete':
         return renderCompleteStep();
+      case 'history':
+        return renderHistoryStep();
       default:
         return renderIntroStep();
     }
