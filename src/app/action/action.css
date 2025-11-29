@@ -1713,8 +1713,33 @@ body {
 
 .complete-actions {
   display: flex;
+  flex-direction: column;
+  gap: 16px;
   justify-content: center;
+  align-items: center;
   margin-top: 40px;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.complete-actions .forest-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.complete-actions .forest-btn svg {
+  flex-shrink: 0;
+}
+
+.complete-actions a.forest-btn {
+  text-decoration: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 /* =========================================

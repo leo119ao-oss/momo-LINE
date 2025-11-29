@@ -1164,6 +1164,18 @@ function ActionPageContent() {
 
   // Completeステップ
   function renderCompleteStep() {
+    // 現在の記事情報をHistoryArticle形式で作成
+    const currentArticle: HistoryArticle = {
+      id: articleId || '',
+      title: title || null,
+      body: body || null,
+      word_count: wordCount,
+      status: status,
+      created_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+      submitted_at: _submittedAt || null,
+    };
+
     return (
       <div className="step-container step-complete">
         <div className="step-content">
@@ -1180,13 +1192,38 @@ function ActionPageContent() {
             )}
           </div>
           <div className="complete-actions">
+            <button
+              type="button"
+              className="forest-btn forest-btn-primary"
+              onClick={() => _handleGeneratePdf(currentArticle)}
+              disabled={!body || body.trim().length === 0}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                <polyline points="7 10 12 15 17 10"></polyline>
+                <line x1="12" y1="15" x2="12" y2="3"></line>
+              </svg>
+              <span>手紙として受け取る</span>
+            </button>
+            <button
+              type="button"
+              className="forest-btn forest-btn-secondary"
+              onClick={() => copyArticleBody(currentArticle)}
+              disabled={!body || body.trim().length === 0}
+            >
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect>
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+              </svg>
+              <span>コピーする</span>
+            </button>
             <a
-              className="btn-primary"
+              className="forest-btn forest-btn-mint"
               href={_GOOGLE_FORM_URL}
               target="_blank"
               rel="noreferrer noopener"
             >
-              アンケートに回答する
+              <span>アンケートに回答する</span>
             </a>
           </div>
         </div>
