@@ -1255,7 +1255,7 @@ function ActionPageContent() {
           isGeneratingOutline={_isGeneratingOutline}
         />
       )}
-      {_message && currentStep !== 'chat' && (
+      {_message && currentStep !== 'chat' && currentStep !== 'outline' && currentStep !== 'draft' && (
         <div className="toast-message">
           <div className={`toast-content ${_saveStatus === 'error' ? 'error' : ''}`}>
             {_message}
