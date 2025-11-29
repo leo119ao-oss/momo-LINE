@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, useCallback, useEffect, useMemo, useRef, useState, memo } from 'react';
 import { useSearchParams } from 'next/navigation';
 import './action.css';
 
@@ -877,8 +877,77 @@ function ActionPageContent() {
     }
   }, [_qaTurns, _currentQuestion, _questionLoading, currentStep]);
 
+  // チャット入力欄コンポーネント（メモ化して再レンダリングを防ぐ）
+  const ChatInput = memo(function ChatInput({
+    value,
+    onChange,
+    onSubmit,
+    disabled,
+    questionLoading,
+    showOutlinePrompt,
+    onOutlinePromptDecline,
+    onOutlinePromptAccept,
+    isGeneratingOutline,
+  }: {
+    value: string;
+    onChange: (value: string) => void;
+    onSubmit: () => void;
+    disabled: boolean;
+    questionLoading: boolean;
+    showOutlinePrompt: boolean;
+    onOutlinePromptDecline: () => void;
+    onOutlinePromptAccept: () => void;
+    isGeneratingOutline: boolean;
+  }) {
+    return (
+      <StickyFooter>
+        {showOutlinePrompt ? (
+          <>
+            <button
+              type="button"
+              className="btn-secondary"
+              onClick={onOutlinePromptDecline}
+              disabled={isGeneratingOutline}
+            >
+              後で考える
+            </button>
+            <button
+              type="button"
+              className="btn-primary"
+              onClick={onOutlinePromptAccept}
+              disabled={isGeneratingOutline}
+            >
+              {isGeneratingOutline ? '生成中...' : '📝 構成案を作る'}
+            </button>
+          </>
+        ) : (
+          <div className="chat-input-container">
+            <textarea
+              key="chat-input-textarea"
+              className="chat-input"
+              rows={4}
+              value={value}
+              onChange={(e) => onChange(e.target.value)}
+              placeholder="答えたいことを自由に書いてみてください..."
+              disabled={disabled || questionLoading}
+            />
+            <button
+              type="button"
+              className="btn-primary btn-send"
+              onClick={onSubmit}
+              disabled={questionLoading || !value.trim() || disabled}
+            >
+              <span className="send-icon">✉️</span>
+              送信
+            </button>
+          </div>
+        )}
+      </StickyFooter>
+    );
+  });
+
   // Chatステップ
-  function renderChatStep() {
+  const renderChatStep = useCallback(() => {
     return (
       <div className="step-container step-chat">
         <div className="step-content">
@@ -926,51 +995,33 @@ function ActionPageContent() {
             )}
           </div>
         </div>
-        <StickyFooter>
-          {_showOutlinePrompt ? (
-            <>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={_handleOutlinePromptDecline}
-                disabled={_isGeneratingOutline}
-              >
-                後で考える
-              </button>
-              <button
-                type="button"
-                className="btn-primary"
-                onClick={_handleOutlinePromptAccept}
-                disabled={_isGeneratingOutline}
-              >
-                {_isGeneratingOutline ? '生成中...' : '📝 構成案を作る'}
-              </button>
-            </>
-          ) : (
-            <div className="chat-input-container">
-              <textarea
-                className="chat-input"
-                rows={4}
-                value={_currentAnswer}
-                onChange={(e) => setCurrentAnswer(e.target.value)}
-                placeholder="答えたいことを自由に書いてみてください..."
-                disabled={_questionLoading || status === 'submitted' || !_warmupComplete}
-              />
-              <button
-                type="button"
-                className="btn-primary btn-send"
-                onClick={_handleAnswerSubmit}
-                disabled={_questionLoading || !_currentAnswer.trim() || status === 'submitted' || !_warmupComplete}
-              >
-                <span className="send-icon">✉️</span>
-                送信
-              </button>
-            </div>
-          )}
-        </StickyFooter>
+        <ChatInput
+          value={_currentAnswer}
+          onChange={setCurrentAnswer}
+          onSubmit={_handleAnswerSubmit}
+          disabled={status === 'submitted' || !_warmupComplete}
+          questionLoading={_questionLoading}
+          showOutlinePrompt={_showOutlinePrompt}
+          onOutlinePromptDecline={_handleOutlinePromptDecline}
+          onOutlinePromptAccept={_handleOutlinePromptAccept}
+          isGeneratingOutline={_isGeneratingOutline}
+        />
       </div>
     );
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [
+    _qaTurns,
+    _currentQuestion,
+    _questionLoading,
+    _showOutlinePrompt,
+    _currentAnswer,
+    _isGeneratingOutline,
+    status,
+    _warmupComplete,
+    _handleAnswerSubmit,
+    _handleOutlinePromptDecline,
+    _handleOutlinePromptAccept,
+  ]);
 
   // Outlineステップ
   function renderOutlineStep() {
@@ -1001,14 +1052,6 @@ function ActionPageContent() {
           </div>
         </div>
         <StickyFooter>
-              <button
-                type="button"
-                className="btn-secondary"
-                onClick={_handleContinueDialogue}
-                disabled={_isGeneratingOutline}
-              >
-                対話を続ける
-              </button>
               {_outlineSuggestions.length > 0 && (
                 <button
                   type="button"
