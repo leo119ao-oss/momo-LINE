@@ -870,30 +870,12 @@ function ActionPageContent() {
     );
   }
 
-  // チャット入力欄の参照
-  const chatInputRef = useRef<HTMLTextAreaElement>(null);
-  const isTypingRef = useRef<boolean>(false);
-  const cursorPositionRef = useRef<number>(0);
-
   // チャットスクロールを自動化
   useEffect(() => {
     if (currentStep === 'chat' && chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [_qaTurns, _currentQuestion, _questionLoading, currentStep]);
-
-  // チャット画面に遷移した時のみフォーカスを設定（入力中は干渉しない）
-  useEffect(() => {
-    if (currentStep === 'chat' && chatInputRef.current && !_questionLoading && !isTypingRef.current) {
-      const timer = setTimeout(() => {
-        if (chatInputRef.current && !isTypingRef.current) {
-          chatInputRef.current.focus();
-        }
-      }, 300);
-      return () => clearTimeout(timer);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentStep]);
 
   // Chatステップ
   function renderChatStep() {
@@ -967,56 +949,10 @@ function ActionPageContent() {
           ) : (
             <div className="chat-input-container">
               <textarea
-                ref={chatInputRef}
-                key="chat-input"
                 className="chat-input"
                 rows={4}
                 value={_currentAnswer}
-                onChange={(e) => {
-                  const newValue = e.target.value;
-                  const cursorPos = e.target.selectionStart;
-                  
-                  isTypingRef.current = true;
-                  cursorPositionRef.current = cursorPos;
-                  
-                  // 状態を更新
-                  setCurrentAnswer(newValue);
-                  
-                  // 次のフレームでカーソル位置を復元
-                  requestAnimationFrame(() => {
-                    if (chatInputRef.current) {
-                      chatInputRef.current.focus();
-                      const newCursorPos = Math.min(cursorPos, newValue.length);
-                      chatInputRef.current.setSelectionRange(newCursorPos, newCursorPos);
-                      isTypingRef.current = false;
-                    }
-                  });
-                }}
-                onFocus={() => {
-                  isTypingRef.current = true;
-                }}
-                onBlur={(e) => {
-                  // 送信ボタンや他の要素をクリックした場合はフォーカスを維持しない
-                  const relatedTarget = e.relatedTarget as HTMLElement;
-                  if (relatedTarget && (relatedTarget.tagName === 'BUTTON' || relatedTarget.closest('button'))) {
-                    isTypingRef.current = false;
-                    return;
-                  }
-                  
-                  // それ以外の場合は少し待ってから再フォーカス
-                  setTimeout(() => {
-                    if (chatInputRef.current && currentStep === 'chat' && !_questionLoading) {
-                      const activeElement = document.activeElement;
-                      if (!activeElement || activeElement.tagName !== 'BUTTON') {
-                        chatInputRef.current.focus();
-                        if (cursorPositionRef.current > 0) {
-                          chatInputRef.current.setSelectionRange(cursorPositionRef.current, cursorPositionRef.current);
-                        }
-                      }
-                    }
-                    isTypingRef.current = false;
-                  }, 150);
-                }}
+                onChange={(e) => setCurrentAnswer(e.target.value)}
                 placeholder="答えたいことを自由に書いてみてください..."
                 disabled={_questionLoading || status === 'submitted' || !_warmupComplete}
               />
