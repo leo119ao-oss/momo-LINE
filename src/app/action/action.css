@@ -1011,7 +1011,7 @@ body {
   margin: 0 auto;
   width: 100%;
   overflow-y: auto;
-  padding-bottom: 100px; /* Sticky Footer用のスペース */
+  padding-bottom: 140px; /* Sticky Footer用のスペース（増加） */
 }
 
 /* Introステップ */
@@ -1319,16 +1319,18 @@ body {
 
 .chat-input {
   flex: 1;
-  padding: 14px 20px;
+  padding: 16px 20px;
   border-radius: 28px;
   border: 2px solid var(--forest-shadow-soft);
   font-size: 16px;
-  resize: none;
-  max-height: 120px;
+  resize: vertical;
+  min-height: 80px;
+  max-height: 200px;
   font-family: 'Zen Maru Gothic', sans-serif;
   color: var(--forest-beige-dark);
   background: var(--forest-cream);
   transition: all 0.3s ease;
+  line-height: 1.6;
 }
 
 .chat-input:focus {

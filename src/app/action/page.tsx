@@ -430,7 +430,9 @@ function ActionPageContent() {
 
   function _handleOutlinePromptDecline() {
     setShowOutlinePrompt(false);
-    fetchNextQuestion(_qaTurns);
+    setPauseAfterOutline(false);
+    // 次の質問を生成して対話を続ける
+    fetchNextQuestion(_qaTurns, { force: true });
   }
 
   async function _handleOutlinePromptAccept() {
@@ -868,12 +870,28 @@ function ActionPageContent() {
     );
   }
 
+  // チャット入力欄の参照
+  const chatInputRef = useRef<HTMLTextAreaElement>(null);
+
   // チャットスクロールを自動化
   useEffect(() => {
     if (currentStep === 'chat' && chatContainerRef.current) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
     }
   }, [_qaTurns, _currentQuestion, _questionLoading, currentStep]);
+
+  // 入力欄のフォーカスを維持
+  useEffect(() => {
+    if (currentStep === 'chat' && chatInputRef.current && !_questionLoading) {
+      // 少し遅延させてフォーカスを設定（再レンダリング後に実行）
+      const timer = setTimeout(() => {
+        if (chatInputRef.current) {
+          chatInputRef.current.focus();
+        }
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+  }, [currentStep, _questionLoading]);
 
   // Chatステップ
   function renderChatStep() {
@@ -947,10 +965,13 @@ function ActionPageContent() {
           ) : (
             <div className="chat-input-container">
               <textarea
+                ref={chatInputRef}
                 className="chat-input"
-                rows={3}
+                rows={4}
                 value={_currentAnswer}
-                onChange={(e) => setCurrentAnswer(e.target.value)}
+                onChange={(e) => {
+                  setCurrentAnswer(e.target.value);
+                }}
                 placeholder="答えたいことを自由に書いてみてください..."
                 disabled={_questionLoading || status === 'submitted' || !_warmupComplete}
               />
@@ -1150,7 +1171,7 @@ function ActionPageContent() {
     <div className="action-wrapper wizard-mode">
       <ProgressBar />
       {renderCurrentStep()}
-      {_message && (
+      {_message && currentStep !== 'chat' && (
         <div className="toast-message">
           <div className={`toast-content ${_saveStatus === 'error' ? 'error' : ''}`}>
             {_message}
