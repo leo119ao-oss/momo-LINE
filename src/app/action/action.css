@@ -1011,7 +1011,12 @@ body {
   margin: 0 auto;
   width: 100%;
   overflow-y: auto;
-  padding-bottom: 140px; /* Sticky Footer用のスペース（増加） */
+  padding-bottom: 180px; /* Sticky Footer用のスペース（さらに増加） */
+}
+
+/* Warmupステップ専用の余白調整 */
+.step-warmup .step-content {
+  padding-bottom: 200px;
 }
 
 /* Introステップ */
